@@ -93,7 +93,7 @@ class SequenceOptimizationEngine:
                 else:
                     # Subsequent agents get dynamically generated questions
                     question_result = await self.research_director.direct_next_investigation(
-                        previous_insights=previous_insights,
+                        previous_agent_insights=previous_insights,
                         next_agent_type=agent_type,
                         research_context=research_topic,
                         sequence_position=position

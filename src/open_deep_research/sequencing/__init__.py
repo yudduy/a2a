@@ -32,6 +32,7 @@ Usage:
 
 from .models import (
     AgentType,
+    AgentExecutionResult,
     SequencePattern,
     SequenceResult,
     SequenceStrategy,
@@ -59,6 +60,7 @@ __all__ = [
     
     # Models and Data Structures
     "AgentType",
+    "AgentExecutionResult",
     "SequencePattern", 
     "SequenceResult",
     "SequenceStrategy",
