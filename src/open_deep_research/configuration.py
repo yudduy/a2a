@@ -231,6 +231,57 @@ class Configuration(BaseModel):
             }
         }
     )
+    
+    # Sequential Optimization Configuration
+    enable_sequence_optimization: bool = Field(
+        default=False,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": False,
+                "description": "Enable sequential agent ordering optimization to test different agent sequences for improved productivity"
+            }
+        }
+    )
+    sequence_strategy: Optional[str] = Field(
+        default=None,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": None,
+                "description": "Preferred sequence strategy for agent ordering",
+                "options": [
+                    {"label": "Auto-select optimal", "value": None},
+                    {"label": "Theory First (Academic → Industry → Technical)", "value": "theory_first"},
+                    {"label": "Market First (Industry → Academic → Technical)", "value": "market_first"},
+                    {"label": "Future Back (Technical → Academic → Industry)", "value": "future_back"}
+                ]
+            }
+        }
+    )
+    compare_all_sequences: bool = Field(
+        default=False,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": False,
+                "description": "Compare all sequence strategies and select the best performing one (slower but optimal)"
+            }
+        }
+    )
+    sequence_variance_threshold: float = Field(
+        default=0.2,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 0.2,
+                "min": 0.1,
+                "max": 1.0,
+                "step": 0.1,
+                "description": "Minimum variance threshold for detecting significant productivity differences between sequences (20% = 0.2)"
+            }
+        }
+    )
 
 
     @classmethod

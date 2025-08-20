@@ -698,6 +698,34 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
         **cleared_state
     }
 
+
+async def sequence_optimization_router(state: AgentState, config: RunnableConfig) -> Command[Literal["sequence_research_supervisor", "research_supervisor"]]:
+    """Route to sequence optimization or standard supervisor based on configuration."""
+    configurable = Configuration.from_runnable_config(config)
+    
+    if getattr(configurable, 'enable_sequence_optimization', False):
+        try:
+            from open_deep_research.sequencing.integration import sequence_research_supervisor
+            return Command(goto="sequence_research_supervisor")
+        except ImportError:
+            # Fallback to standard supervisor if sequencing module not available
+            return Command(goto="research_supervisor")
+    else:
+        return Command(goto="research_supervisor")
+
+
+async def sequence_research_supervisor(state: AgentState, config: RunnableConfig) -> Command[Literal["final_report_generation"]]:
+    """Enhanced research supervisor with sequence optimization capability."""
+    try:
+        from open_deep_research.sequencing.integration import sequence_research_supervisor as seq_supervisor
+        result = await seq_supervisor(state, config)
+        return result
+    except Exception as e:
+        # Fallback to standard supervisor on error
+        print(f"Sequence optimization failed, falling back to standard supervisor: {e}")
+        return await supervisor_subgraph.ainvoke(state, config)
+
+
 # Main Deep Researcher Graph Construction
 # Creates the complete deep research workflow from user input to final report
 deep_researcher_builder = StateGraph(
@@ -709,12 +737,16 @@ deep_researcher_builder = StateGraph(
 # Add main workflow nodes for the complete research process
 deep_researcher_builder.add_node("clarify_with_user", clarify_with_user)           # User clarification phase
 deep_researcher_builder.add_node("write_research_brief", write_research_brief)     # Research planning phase
-deep_researcher_builder.add_node("research_supervisor", supervisor_subgraph)       # Research execution phase
+deep_researcher_builder.add_node("sequence_optimization_router", sequence_optimization_router)  # Route to appropriate supervisor
+deep_researcher_builder.add_node("research_supervisor", supervisor_subgraph)       # Standard research execution phase
+deep_researcher_builder.add_node("sequence_research_supervisor", sequence_research_supervisor)  # Sequence optimization phase
 deep_researcher_builder.add_node("final_report_generation", final_report_generation)  # Report generation phase
 
 # Define main workflow edges for sequential execution
 deep_researcher_builder.add_edge(START, "clarify_with_user")                       # Entry point
-deep_researcher_builder.add_edge("research_supervisor", "final_report_generation") # Research to report
+deep_researcher_builder.add_edge("write_research_brief", "sequence_optimization_router")  # Route to appropriate supervisor
+deep_researcher_builder.add_edge("research_supervisor", "final_report_generation") # Standard research to report
+deep_researcher_builder.add_edge("sequence_research_supervisor", "final_report_generation") # Sequence research to report
 deep_researcher_builder.add_edge("final_report_generation", END)                   # Final exit point
 
 # Compile the complete deep researcher workflow
