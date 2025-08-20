@@ -826,6 +826,11 @@ MODEL_TOKEN_LIMITS = {
     "bedrock:us.anthropic.claude-sonnet-4-20250514-v1:0": 200000,
     "bedrock:us.anthropic.claude-opus-4-20250514-v1:0": 200000,
     "anthropic.claude-opus-4-1-20250805-v1:0": 200000,
+    # Hyperbolic models
+    "hyperbolic:meta-llama/Meta-Llama-3-70B-Instruct": 8192,
+    "hyperbolic:meta-llama/Meta-Llama-3.1-70B-Instruct": 128000,
+    "hyperbolic:meta-llama/Meta-Llama-3.3-70B-Instruct": 128000,
+    "hyperbolic:mistralai/Mixtral-8x7B-Instruct-v0.1": 32768,
 }
 
 def get_model_token_limit(model_string):
@@ -889,6 +894,38 @@ def get_config_value(value):
     else:
         return value.value
 
+def get_model_config_for_provider(model_name: str, api_key: str, max_tokens: int = None, tags: list = None) -> dict:
+    """Get model configuration for any provider including special handling for Hyperbolic.
+    
+    Args:
+        model_name: The model name (e.g., "hyperbolic:meta-llama/Meta-Llama-3-70B-Instruct")
+        api_key: The API key for the provider
+        max_tokens: Maximum tokens for the model
+        tags: List of tags for LangSmith tracing
+        
+    Returns:
+        Dictionary with model configuration including provider-specific settings
+    """
+    config = {
+        "api_key": api_key,
+        "tags": tags or ["langsmith:nostream"]
+    }
+    
+    if max_tokens:
+        config["max_tokens"] = max_tokens
+    
+    if model_name.lower().startswith("hyperbolic:"):
+        # Extract the actual model name without the "hyperbolic:" prefix
+        actual_model_name = model_name[len("hyperbolic:"):]
+        config.update({
+            "model": f"openai:{actual_model_name}",  # Use OpenAI provider with custom base_url
+            "base_url": "https://api.hyperbolic.xyz/v1"
+        })
+    else:
+        config["model"] = model_name
+    
+    return config
+
 def get_api_key_for_model(model_name: str, config: RunnableConfig):
     """Get API key for a specific model from environment or config."""
     should_get_from_config = os.getenv("GET_API_KEYS_FROM_CONFIG", "false")
@@ -903,6 +940,8 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
             return api_keys.get("ANTHROPIC_API_KEY")
         elif model_name.startswith("google"):
             return api_keys.get("GOOGLE_API_KEY")
+        elif model_name.startswith("hyperbolic:"):
+            return api_keys.get("HYPERBOLIC_API_KEY")
         return None
     else:
         if model_name.startswith("openai:"): 
@@ -911,6 +950,8 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
             return os.getenv("ANTHROPIC_API_KEY")
         elif model_name.startswith("google"):
             return os.getenv("GOOGLE_API_KEY")
+        elif model_name.startswith("hyperbolic:"):
+            return os.getenv("HYPERBOLIC_API_KEY")
         return None
 
 def get_tavily_api_key(config: RunnableConfig):
