@@ -1,15 +1,16 @@
-"""Sequential Agent Ordering Optimization Framework for OpenDeepResearch.
+"""Dynamic Sequential Agent Ordering Optimization Framework for OpenDeepResearch.
 
-This module implements a comprehensive framework for proving that different sequential
-orderings of specialized agents produce measurably different productivity outcomes
-in research tasks.
+This module implements a comprehensive framework for dynamically generating and executing 
+optimal sequences of specialized agents based on research topic analysis, proving that 
+different orderings produce measurably different productivity outcomes.
 
 Key Components:
-- SequenceOptimizationEngine: Core engine for executing and comparing sequences
+- SequenceOptimizationEngine: Core engine for executing dynamic and static sequences
+- SequenceAnalyzer: LLM-powered dynamic sequence generation based on topic analysis
 - SupervisorResearchDirector: Dynamic question generation and insight tracking
 - Specialized Agents: Academic, Industry, and Technical Trends agents
 - MetricsCalculator: Tool productivity metrics and comparative analysis
-- Models: Data structures for sequence patterns and results
+- DynamicSequencePattern: Flexible sequence representation for any agent ordering
 
 Core Metrics:
 - Tool Productivity (TP) = Research Quality / Agent Calls
@@ -17,17 +18,21 @@ Core Metrics:
 - Context Efficiency = Relevant Context Used / Total Context Available
 - Time to Value = Time to first significant insight
 
-The framework executes three strategic sequence patterns:
-1. Theory First: Academic → Industry → Technical (strong theoretical foundation)
-2. Market First: Industry → Academic → Technical (market-driven approach)
-3. Future Back: Technical → Academic → Industry (future-oriented perspective)
+Dynamic Sequence Generation:
+The framework now intelligently generates optimal sequences based on:
+- Research topic domain analysis (academic, market, technical)
+- Query complexity and scope assessment
+- Historical performance patterns
+- LLM-powered reasoning for sequence optimization
 
 Usage:
-    from open_deep_research.sequencing import SequenceOptimizationEngine
+    from open_deep_research.sequencing import SequenceAnalyzer, SequenceOptimizationEngine
+    
+    analyzer = SequenceAnalyzer()
+    sequences = analyzer.generate_dynamic_sequences("AI safety research")
     
     engine = SequenceOptimizationEngine(config)
-    comparison = await engine.compare_sequences("AI safety research")
-    print(f"Productivity variance: {comparison.productivity_variance:.3f}")
+    results = await engine.execute_sequences_parallel(sequences, "AI safety research")
 """
 
 from .models import (
@@ -38,13 +43,11 @@ from .models import (
     ScopeBreadth,
     SequenceAnalysis,
     SequencePattern,
+    DynamicSequencePattern,
     SequenceResult,
     ToolProductivityMetrics,
     InsightTransition,
-    SEQUENCE_PATTERNS,
-    THEORY_FIRST_PATTERN,
-    MARKET_FIRST_PATTERN,
-    FUTURE_BACK_PATTERN
+    SEQUENCE_PATTERNS
 )
 from .research_director import SupervisorResearchDirector
 from .sequence_engine import SequenceOptimizationEngine
@@ -98,13 +101,11 @@ __all__ = [
     "ScopeBreadth",
     "SequenceAnalysis",
     "SequencePattern", 
+    "DynamicSequencePattern",
     "SequenceResult",
     "ToolProductivityMetrics",
     "InsightTransition",
     "SEQUENCE_PATTERNS",
-    "THEORY_FIRST_PATTERN",
-    "MARKET_FIRST_PATTERN", 
-    "FUTURE_BACK_PATTERN",
     
     # Director and Metrics
     "SupervisorResearchDirector",

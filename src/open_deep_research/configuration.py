@@ -232,53 +232,27 @@ class Configuration(BaseModel):
         }
     )
     
-    # Sequential Optimization Configuration
-    enable_sequence_optimization: bool = Field(
+    # Dynamic Sequencing Configuration  
+    enable_dynamic_sequencing: bool = Field(
         default=False,
         metadata={
             "x_oap_ui_config": {
                 "type": "boolean",
                 "default": False,
-                "description": "Enable sequential agent ordering optimization to test different agent sequences for improved productivity"
+                "description": "Enable dynamic sequence generation that creates optimal agent orderings based on research topic analysis"
             }
         }
     )
-    sequence_strategy: Optional[str] = Field(
-        default=None,
+    max_dynamic_sequences: int = Field(
+        default=3,
         metadata={
             "x_oap_ui_config": {
-                "type": "select",
-                "default": None,
-                "description": "Preferred sequence strategy for agent ordering",
-                "options": [
-                    {"label": "Auto-select optimal", "value": None},
-                    {"label": "Theory First (Academic → Industry → Technical)", "value": "theory_first"},
-                    {"label": "Market First (Industry → Academic → Technical)", "value": "market_first"},
-                    {"label": "Future Back (Technical → Academic → Industry)", "value": "future_back"}
-                ]
-            }
-        }
-    )
-    compare_all_sequences: bool = Field(
-        default=False,
-        metadata={
-            "x_oap_ui_config": {
-                "type": "boolean",
-                "default": False,
-                "description": "Compare all sequence strategies and select the best performing one (slower but optimal)"
-            }
-        }
-    )
-    sequence_variance_threshold: float = Field(
-        default=0.2,
-        metadata={
-            "x_oap_ui_config": {
-                "type": "number",
-                "default": 0.2,
-                "min": 0.1,
-                "max": 1.0,
-                "step": 0.1,
-                "description": "Minimum variance threshold for detecting significant productivity differences between sequences (20% = 0.2)"
+                "type": "slider",
+                "default": 3,
+                "min": 1,
+                "max": 5,
+                "step": 1,
+                "description": "Maximum number of dynamic sequences to generate and compare for each research topic"
             }
         }
     )
