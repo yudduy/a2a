@@ -12,7 +12,7 @@ import weakref
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Set, Tuple, Union
 from uuid import uuid4
 
 try:
@@ -28,8 +28,9 @@ from .models import (
     SequenceComparison,
     SequenceResult,
     SequenceStrategy,
-    ToolProductivityMetrics,
-    SEQUENCE_PATTERNS
+    SequencePattern,
+    DynamicSequencePattern,
+    ToolProductivityMetrics
 )
 from .sequence_engine import SequenceOptimizationEngine
 
@@ -50,10 +51,11 @@ class ParallelExecutionProgress(BaseModel):
     """Real-time progress tracking for parallel sequence execution."""
     
     execution_id: str = Field(default_factory=lambda: str(uuid4()))
-    sequence_strategy: SequenceStrategy
+    sequence_strategy: Optional[SequenceStrategy] = None
+    sequence_pattern: Optional[Union[SequencePattern, DynamicSequencePattern]] = None
     status: str = Field(default="pending")  # pending, running, completed, failed
-    agent_position: int = Field(default=0)  # 0-3, current agent executing
-    total_agents: int = Field(default=3)
+    agent_position: int = Field(default=0)  # current agent executing
+    total_agents: int = Field(default=3)  # dynamic based on sequence length
     
     # Progress metrics
     start_time: Optional[datetime] = None
@@ -404,38 +406,62 @@ class ParallelSequenceExecutor:
     async def execute_sequences_parallel(
         self,
         research_topic: str,
-        strategies: Optional[List[SequenceStrategy]] = None,
+        sequences: Optional[Union[List[SequenceStrategy], List[Union[SequencePattern, DynamicSequencePattern]]]] = None,
         stream_callback: Optional[Callable[[StreamMessage], None]] = None
     ) -> ParallelExecutionResult:
         """Execute multiple sequences in parallel with real-time streaming.
         
         Args:
             research_topic: The research topic to investigate
-            strategies: List of strategies to execute (default: all three)
+            sequences: List of strategies/patterns to execute (default: all three strategies)
             stream_callback: Callback function for real-time progress updates
             
         Returns:
             ParallelExecutionResult with comprehensive execution data
         """
-        if strategies is None:
-            strategies = list(SequenceStrategy)
+        # Handle backward compatibility and default sequences
+        if sequences is None:
+            sequences = list(SequenceStrategy)
         
-        if len(strategies) > self.max_concurrent:
-            raise ValueError(f"Cannot execute {len(strategies)} strategies concurrently (max: {self.max_concurrent})")
+        # Convert sequences to standardized format
+        sequence_patterns = []
+        sequence_strategies = []
+        
+        for seq in sequences:
+            if isinstance(seq, SequenceStrategy):
+                # Legacy strategy - need to create pattern from it
+                sequence_strategies.append(seq)
+                # We'll create the pattern later when we have SEQUENCE_PATTERNS or create a default
+            elif isinstance(seq, (SequencePattern, DynamicSequencePattern)):
+                sequence_patterns.append(seq)
+                # Extract strategy if available
+                if hasattr(seq, 'strategy'):
+                    sequence_strategies.append(seq.strategy)
+                else:
+                    # For DynamicSequencePattern without strategy, use a placeholder
+                    sequence_strategies.append(None)
+            else:
+                raise ValueError(f"Unsupported sequence type: {type(seq)}")
+        
+        if len(sequences) > self.max_concurrent:
+            raise ValueError(f"Cannot execute {len(sequences)} sequences concurrently (max: {self.max_concurrent})")
         
         execution_id = str(uuid4())
         start_time = datetime.utcnow()
         
-        logger.info(f"Starting parallel execution {execution_id}: {len(strategies)} strategies for '{research_topic}'")
+        logger.info(f"Starting parallel execution {execution_id}: {len(sequences)} sequences for '{research_topic}'")
         
         # Register execution with metrics aggregator
         if self.enable_real_time_metrics and self.metrics_aggregator:
-            self.metrics_aggregator.register_execution(
-                execution_id=execution_id,
-                strategies=strategies,
-                start_time=start_time
-            )
-            logger.debug(f"Registered execution {execution_id} with metrics aggregator")
+            # Only register strategies that are not None
+            valid_strategies = [s for s in sequence_strategies if s is not None]
+            if valid_strategies:
+                self.metrics_aggregator.register_execution(
+                    execution_id=execution_id,
+                    strategies=valid_strategies,
+                    start_time=start_time
+                )
+                logger.debug(f"Registered execution {execution_id} with metrics aggregator")
         
         # Send initial stream message
         if stream_callback:
@@ -444,8 +470,8 @@ class ParallelSequenceExecutor:
                 data={
                     "execution_id": execution_id,
                     "research_topic": research_topic,
-                    "strategies": [s.value for s in strategies],
-                    "estimated_duration": len(strategies) * 300,  # 5 minutes per strategy
+                    "sequences": [s.value if isinstance(s, SequenceStrategy) else str(s.sequence_id) if hasattr(s, 'sequence_id') else str(i) for i, s in enumerate(sequences)],
+                    "estimated_duration": len(sequences) * 300,  # 5 minutes per sequence
                     "metrics_enabled": self.enable_real_time_metrics
                 }
             )
@@ -453,57 +479,72 @@ class ParallelSequenceExecutor:
         
         # Create progress trackers
         progress_trackers = {}
-        for strategy in strategies:
+        for i, seq in enumerate(sequences):
+            # Determine total agents for this sequence
+            if isinstance(seq, (SequencePattern, DynamicSequencePattern)):
+                total_agents = len(seq.agent_order)
+                pattern = seq
+                strategy = getattr(seq, 'strategy', None)
+            else:  # SequenceStrategy
+                total_agents = 3  # Default for backward compatibility
+                pattern = None
+                strategy = seq
+            
             progress = ParallelExecutionProgress(
                 execution_id=execution_id,
                 sequence_strategy=strategy,
-                status="pending"
+                sequence_pattern=pattern,
+                status="pending",
+                total_agents=total_agents
             )
-            progress_trackers[strategy] = progress
-            self.active_executions[f"{execution_id}_{strategy.value}"] = progress
+            progress_trackers[i] = progress
+            # Use index for key to handle dynamic patterns without strategy
+            key = f"{execution_id}_{i}_{strategy.value if strategy else 'dynamic'}"
+            self.active_executions[key] = progress
         
         try:
             # Execute sequences in parallel
             tasks = []
-            for strategy in strategies:
+            for i, seq in enumerate(sequences):
                 task = asyncio.create_task(
                     self._execute_single_sequence(
                         research_topic=research_topic,
-                        strategy=strategy,
-                        progress_tracker=progress_trackers[strategy],
+                        sequence=seq,
+                        progress_tracker=progress_trackers[i],
                         stream_callback=stream_callback
                     )
                 )
-                tasks.append((strategy, task))
+                tasks.append((i, seq, task))
             
             # Wait for all tasks to complete with timeout
             sequence_results = {}
             failed_sequences = []
             error_summary = {}
-            progress_snapshots = {strategy: [] for strategy in strategies}
+            progress_snapshots = {i: [] for i in range(len(sequences))}
             
-            for strategy, task in tasks:
+            for i, seq, task in tasks:
+                seq_id = self._get_sequence_id(seq)
                 try:
                     result = await asyncio.wait_for(task, timeout=self.timeout_seconds)
                     if result:
-                        sequence_results[strategy] = result
-                        logger.info(f"Sequence {strategy.value} completed successfully")
+                        sequence_results[i] = result
+                        logger.info(f"Sequence {seq_id} completed successfully")
                     else:
-                        failed_sequences.append(strategy)
-                        error_summary[strategy] = "No result returned"
-                        logger.warning(f"Sequence {strategy.value} returned no result")
+                        failed_sequences.append(i)
+                        error_summary[i] = "No result returned"
+                        logger.warning(f"Sequence {seq_id} returned no result")
                 except asyncio.TimeoutError:
-                    failed_sequences.append(strategy)
-                    error_summary[strategy] = f"Timeout after {self.timeout_seconds} seconds"
-                    logger.error(f"Sequence {strategy.value} timed out")
+                    failed_sequences.append(i)
+                    error_summary[i] = f"Timeout after {self.timeout_seconds} seconds"
+                    logger.error(f"Sequence {seq_id} timed out")
                 except Exception as e:
-                    failed_sequences.append(strategy)
-                    error_summary[strategy] = str(e)
-                    logger.error(f"Sequence {strategy.value} failed: {e}")
+                    failed_sequences.append(i)
+                    error_summary[i] = str(e)
+                    logger.error(f"Sequence {seq_id} failed: {e}")
                 
                 # Collect progress snapshots
-                if strategy in progress_trackers:
-                    progress_snapshots[strategy].append(progress_trackers[strategy])
+                if i in progress_trackers:
+                    progress_snapshots[i].append(progress_trackers[i])
             
             # Generate comparison if we have results
             comparison = None
@@ -538,7 +579,7 @@ class ParallelSequenceExecutor:
                 sequence_results=sequence_results,
                 progress_snapshots=progress_snapshots,
                 comparison=comparison,
-                max_concurrency_achieved=len(strategies),
+                max_concurrency_achieved=len(sequences),
                 average_memory_usage=self.resource_monitor.get_average_memory(),
                 peak_memory_usage=self.resource_monitor.get_peak_memory(),
                 total_api_calls=sum(
@@ -574,14 +615,26 @@ class ParallelSequenceExecutor:
             
         finally:
             # Clean up active executions
-            for strategy in strategies:
-                key = f"{execution_id}_{strategy.value}"
+            for i, seq in enumerate(sequences):
+                strategy = seq if isinstance(seq, SequenceStrategy) else getattr(seq, 'strategy', None)
+                key = f"{execution_id}_{i}_{strategy.value if strategy else 'dynamic'}"
                 self.active_executions.pop(key, None)
+    
+    def _get_sequence_id(self, sequence: Union[SequenceStrategy, SequencePattern, DynamicSequencePattern]) -> str:
+        """Get a readable ID for a sequence."""
+        if isinstance(sequence, SequenceStrategy):
+            return sequence.value
+        elif hasattr(sequence, 'sequence_id'):
+            return str(sequence.sequence_id)
+        elif hasattr(sequence, 'strategy'):
+            return sequence.strategy.value
+        else:
+            return "dynamic_sequence"
     
     async def _execute_single_sequence(
         self,
         research_topic: str,
-        strategy: SequenceStrategy,
+        sequence: Union[SequenceStrategy, SequencePattern, DynamicSequencePattern],
         progress_tracker: ParallelExecutionProgress,
         stream_callback: Optional[Callable[[StreamMessage], None]] = None
     ) -> Optional[SequenceResult]:
@@ -590,6 +643,7 @@ class ParallelSequenceExecutor:
         async with self.semaphore:  # Limit concurrency
             engine = None
             retry_count = 0
+            sequence_id = self._get_sequence_id(sequence)
             
             while retry_count <= self.retry_attempts:
                 try:
@@ -603,6 +657,9 @@ class ParallelSequenceExecutor:
                     progress_tracker.memory_usage_mb = memory
                     progress_tracker.cpu_usage_percent = cpu
                     
+                    # Determine the strategy for the stream message
+                    strategy = sequence if isinstance(sequence, SequenceStrategy) else getattr(sequence, 'strategy', None)
+                    
                     # Send progress update
                     if stream_callback:
                         progress_message = StreamMessage(
@@ -611,7 +668,8 @@ class ParallelSequenceExecutor:
                             progress=progress_tracker,
                             data={
                                 "status": "sequence_started",
-                                "strategy": strategy.value,
+                                "sequence_id": sequence_id,
+                                "strategy": strategy.value if strategy else "dynamic",
                                 "retry_attempt": retry_count
                             }
                         )
@@ -623,7 +681,35 @@ class ParallelSequenceExecutor:
                         metrics_aggregator=self.metrics_aggregator,
                         enable_real_time_metrics=self.enable_real_time_metrics
                     )
-                    pattern = SEQUENCE_PATTERNS[strategy]
+                    
+                    # Get the pattern to execute
+                    if isinstance(sequence, (SequencePattern, DynamicSequencePattern)):
+                        pattern = sequence
+                    else:  # SequenceStrategy - need to handle this case
+                        # Try to create a pattern from strategy or use a fallback
+                        try:
+                            # Check if we have SEQUENCE_PATTERNS available
+                            from .models import SEQUENCE_PATTERNS
+                            pattern = SEQUENCE_PATTERNS[sequence]
+                        except (ImportError, KeyError, AttributeError):
+                            # Fallback: create a basic pattern from the strategy
+                            from .models import AgentType
+                            if sequence == SequenceStrategy.THEORY_FIRST:
+                                agent_order = [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS]
+                            elif sequence == SequenceStrategy.MARKET_FIRST:
+                                agent_order = [AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS]
+                            elif sequence == SequenceStrategy.FUTURE_BACK:
+                                agent_order = [AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY]
+                            else:
+                                agent_order = [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS]
+                            
+                            pattern = SequencePattern(
+                                agent_order=agent_order,
+                                description=f"Generated pattern for {sequence.value}",
+                                expected_advantages=[f"Optimized for {sequence.value} approach"]
+                            )
+                            # Add strategy attribute for compatibility
+                            pattern.strategy = sequence
                     
                     # Execute sequence with progress updates
                     result = await self._execute_with_progress_updates(
@@ -639,7 +725,7 @@ class ParallelSequenceExecutor:
                     progress_tracker.status = "completed"
                     progress_tracker.agent_position = progress_tracker.total_agents
                     
-                    logger.info(f"Sequence {strategy.value} completed successfully after {retry_count} retries")
+                    logger.info(f"Sequence {sequence_id} completed successfully after {retry_count} retries")
                     return result
                     
                 except Exception as e:
@@ -649,7 +735,7 @@ class ParallelSequenceExecutor:
                     progress_tracker.error_message = error_msg
                     progress_tracker.retry_count = retry_count
                     
-                    logger.warning(f"Sequence {strategy.value} failed (attempt {retry_count}): {e}")
+                    logger.warning(f"Sequence {sequence_id} failed (attempt {retry_count}): {e}")
                     
                     # Send error update
                     if stream_callback:
@@ -658,6 +744,7 @@ class ParallelSequenceExecutor:
                             message_type="error",
                             data={
                                 "error": str(e),
+                                "sequence_id": sequence_id,
                                 "retry_attempt": retry_count,
                                 "will_retry": retry_count <= self.retry_attempts
                             }
@@ -667,12 +754,12 @@ class ParallelSequenceExecutor:
                     if retry_count <= self.retry_attempts:
                         # Wait before retry with exponential backoff
                         wait_time = min(2 ** retry_count, 30)  # Max 30 seconds
-                        logger.info(f"Retrying sequence {strategy.value} in {wait_time} seconds...")
+                        logger.info(f"Retrying sequence {sequence_id} in {wait_time} seconds...")
                         await asyncio.sleep(wait_time)
                     else:
                         # Final failure
                         progress_tracker.status = "failed"
-                        logger.error(f"Sequence {strategy.value} failed permanently after {retry_count} attempts")
+                        logger.error(f"Sequence {sequence_id} failed permanently after {retry_count} attempts")
                         return None
             
             return None  # Should never reach here
@@ -715,15 +802,17 @@ class ParallelSequenceExecutor:
             
             # Send final progress update
             if stream_callback:
+                strategy = getattr(pattern, 'strategy', None)
                 completion_message = StreamMessage(
-                    sequence_strategy=pattern.strategy,
+                    sequence_strategy=strategy,
                     message_type="progress",
                     progress=progress_tracker,
                     data={
                         "status": "sequence_completed",
                         "total_insights": len(progress_tracker.current_insights),
                         "total_duration": sequence_result.total_duration,
-                        "tool_productivity": sequence_result.overall_productivity_metrics.tool_productivity
+                        "tool_productivity": sequence_result.overall_productivity_metrics.tool_productivity,
+                        "sequence_id": getattr(pattern, 'sequence_id', 'unknown')
                     }
                 )
                 await self._safe_stream_callback(stream_callback, completion_message)
@@ -731,7 +820,9 @@ class ParallelSequenceExecutor:
             return sequence_result
             
         except Exception as e:
-            logger.error(f"Error in sequence execution for {pattern.strategy.value}: {e}")
+            strategy = getattr(pattern, 'strategy', None)
+            pattern_id = getattr(pattern, 'sequence_id', 'unknown')
+            logger.error(f"Error in sequence execution for {strategy.value if strategy else pattern_id}: {e}")
             raise
     
     async def _safe_stream_callback(

@@ -23,6 +23,7 @@ from open_deep_research.sequencing.models import (
     SequencePattern,
     SequenceResult,
     SequenceStrategy,
+    DynamicSequencePattern,
     SEQUENCE_PATTERNS,
     ToolProductivityMetrics
 )
@@ -72,39 +73,67 @@ class SequenceOptimizationEngine:
         self._current_execution_id: Optional[str] = None
         self._current_strategy: Optional[SequenceStrategy] = None
         
-        # Agent registry
-        self.agents = {
-            AgentType.ACADEMIC: AcademicAgent(config),
-            AgentType.INDUSTRY: IndustryAgent(config),
-            AgentType.TECHNICAL_TRENDS: TechnicalTrendsAgent(config)
-        }
+        # Dynamic agent creation - agents are created on demand
+        self._agent_cache: Dict[AgentType, Any] = {}
+        self._config = config
         
         # Execution history
         self.execution_history: List[SequenceResult] = []
         self.comparison_history: List[SequenceComparison] = []
         self.analysis_history: List[SequenceAnalysis] = []
     
+    def _get_agent(self, agent_type: AgentType) -> Any:
+        """Get or create an agent instance dynamically.
+        
+        Args:
+            agent_type: The type of agent to create/retrieve
+            
+        Returns:
+            The agent instance for the specified type
+        """
+        if agent_type not in self._agent_cache:
+            if agent_type == AgentType.ACADEMIC:
+                self._agent_cache[agent_type] = AcademicAgent(self._config)
+            elif agent_type == AgentType.INDUSTRY:
+                self._agent_cache[agent_type] = IndustryAgent(self._config)
+            elif agent_type == AgentType.TECHNICAL_TRENDS:
+                self._agent_cache[agent_type] = TechnicalTrendsAgent(self._config)
+            else:
+                raise ValueError(f"Unsupported agent type: {agent_type}")
+        
+        return self._agent_cache[agent_type]
+    
     async def execute_sequence(
         self, 
-        sequence_pattern: SequencePattern, 
+        sequence_pattern: Union[SequencePattern, DynamicSequencePattern], 
         research_topic: str,
         execution_id: Optional[str] = None
     ) -> SequenceResult:
         """Execute a complete sequence pattern for a research topic.
         
         Args:
-            sequence_pattern: The sequence pattern to execute
+            sequence_pattern: The sequence pattern to execute (SequencePattern or DynamicSequencePattern)
             research_topic: The research topic to investigate
             execution_id: Optional execution ID for metrics tracking
             
         Returns:
             SequenceResult with complete execution data and metrics
         """
-        logger.info(f"Starting sequence execution: {sequence_pattern.strategy.value} for '{research_topic}'")
+        # Handle both pattern types
+        if isinstance(sequence_pattern, DynamicSequencePattern):
+            pattern_description = f"dynamic pattern ({sequence_pattern.sequence_id})"
+            agent_order = sequence_pattern.agent_order
+            strategy = None  # Dynamic patterns don't have strategy enum
+        else:
+            pattern_description = sequence_pattern.strategy.value
+            agent_order = sequence_pattern.agent_order
+            strategy = sequence_pattern.strategy
+        
+        logger.info(f"Starting sequence execution: {pattern_description} for '{research_topic}'")
         
         # Set up metrics tracking
         self._current_execution_id = execution_id
-        self._current_strategy = sequence_pattern.strategy
+        self._current_strategy = strategy
         
         start_time = datetime.utcnow()
         agent_results: List[AgentExecutionResult] = []
@@ -114,17 +143,17 @@ class SequenceOptimizationEngine:
         previous_insights: List[str] = []
         
         # Initialize metrics collection if aggregator is available
-        if self.metrics_aggregator and execution_id:
+        if self.metrics_aggregator and execution_id and strategy:
             self.metrics_aggregator.collect_sequence_metrics(
                 execution_id, 
-                sequence_pattern.strategy,
+                strategy,
                 status_update="running"
             )
         
         try:
             # Execute each agent in sequence
-            for position, agent_type in enumerate(sequence_pattern.agent_order, 1):
-                logger.info(f"Executing agent {position}/3: {agent_type.value}")
+            for position, agent_type in enumerate(agent_order, 1):
+                logger.info(f"Executing agent {position}/{len(agent_order)}: {agent_type.value}")
                 
                 # Generate questions for this agent (except first)
                 if position == 1:
@@ -149,29 +178,30 @@ class SequenceOptimizationEngine:
                     agent_type=agent_type
                 )
                 
-                # Execute agent research
-                agent_result = await self.agents[agent_type].execute_research(context)
+                # Execute agent research using dynamic agent creation
+                agent_instance = self._get_agent(agent_type)
+                agent_result = await agent_instance.execute_research(context)
                 agent_results.append(agent_result)
                 
                 # Real-time metrics collection
-                if self.enable_real_time_metrics and self.metrics_aggregator and execution_id:
+                if self.enable_real_time_metrics and self.metrics_aggregator and execution_id and strategy:
                     try:
                         # Collect metrics for this agent completion
                         self.metrics_aggregator.collect_sequence_metrics(
                             execution_id,
-                            sequence_pattern.strategy,
+                            strategy,
                             agent_result=agent_result
                         )
                         
                         # Calculate real-time productivity
                         await self.metrics_calculator.calculate_real_time_productivity(
-                            sequence_id=f"{execution_id}_{sequence_pattern.strategy.value}",
+                            sequence_id=f"{execution_id}_{strategy.value if strategy else 'dynamic'}",
                             agent_results=agent_results,
                             insight_transitions=insight_transitions,
-                            partial=position < len(sequence_pattern.agent_order)
+                            partial=position < len(agent_order)
                         )
                         
-                        logger.debug(f"Real-time metrics updated for agent {position}/{len(sequence_pattern.agent_order)}")
+                        logger.debug(f"Real-time metrics updated for agent {position}/{len(agent_order)}")
                         
                     except Exception as e:
                         logger.warning(f"Error updating real-time metrics: {e}")
@@ -179,7 +209,7 @@ class SequenceOptimizationEngine:
                 # Track insight productivity if not first agent
                 if position > 1:
                     insight_analysis = await self.research_director.track_insight_productivity(
-                        from_agent=sequence_pattern.agent_order[position - 2],
+                        from_agent=agent_order[position - 2],
                         to_agent=agent_type,
                         insights=agent_result.key_insights,
                         research_context=research_topic,
@@ -189,7 +219,7 @@ class SequenceOptimizationEngine:
                     # Create insight transition record
                     from open_deep_research.sequencing.models import InsightTransition, InsightType
                     transition = InsightTransition(
-                        from_agent=sequence_pattern.agent_order[position - 2],
+                        from_agent=agent_order[position - 2],
                         to_agent=agent_type,
                         source_insight="\n".join(previous_insights),
                         insight_type=insight_analysis.insight_types[0] if insight_analysis.insight_types else InsightType.RESEARCH_GAP,
@@ -245,24 +275,24 @@ class SequenceOptimizationEngine:
             )
             
             # Final metrics collection
-            if self.enable_real_time_metrics and self.metrics_aggregator and execution_id:
+            if self.enable_real_time_metrics and self.metrics_aggregator and execution_id and strategy:
                 try:
                     # Mark sequence as completed
                     self.metrics_aggregator.collect_sequence_metrics(
                         execution_id,
-                        sequence_pattern.strategy,
+                        strategy,
                         status_update="completed"
                     )
                     
                     # Final real-time productivity calculation
                     await self.metrics_calculator.calculate_real_time_productivity(
-                        sequence_id=f"{execution_id}_{sequence_pattern.strategy.value}",
+                        sequence_id=f"{execution_id}_{strategy.value if strategy else 'dynamic'}",
                         agent_results=agent_results,
                         insight_transitions=insight_transitions,
                         partial=False
                     )
                     
-                    logger.info(f"Final metrics collected for sequence {sequence_pattern.strategy.value}")
+                    logger.info(f"Final metrics collected for sequence {strategy.value if strategy else pattern_description}")
                     
                 except Exception as e:
                     logger.warning(f"Error collecting final metrics: {e}")
@@ -277,11 +307,11 @@ class SequenceOptimizationEngine:
             
         except Exception as e:
             # Report error to metrics aggregator
-            if self.metrics_aggregator and execution_id:
+            if self.metrics_aggregator and execution_id and strategy:
                 try:
                     self.metrics_aggregator.collect_sequence_metrics(
                         execution_id,
-                        sequence_pattern.strategy,
+                        strategy,
                         status_update="failed",
                         error=str(e)
                     )
@@ -324,18 +354,26 @@ class SequenceOptimizationEngine:
         self, 
         agent_results: List[AgentExecutionResult], 
         research_topic: str,
-        sequence_pattern: SequencePattern
+        sequence_pattern: Union[SequencePattern, DynamicSequencePattern]
     ) -> str:
         """Synthesize findings from all agents into a comprehensive summary."""
         
+        # Handle both pattern types
+        if isinstance(sequence_pattern, DynamicSequencePattern):
+            strategy_description = f"Dynamic Pattern (ID: {sequence_pattern.sequence_id})"
+            strategy_value = sequence_pattern.description
+        else:
+            strategy_description = f"Sequence Strategy: {sequence_pattern.strategy.value}"
+            strategy_value = sequence_pattern.strategy.value
+        
         synthesis_parts = [
             f"# Comprehensive Research Synthesis: {research_topic}",
-            f"## Sequence Strategy: {sequence_pattern.strategy.value}",
+            f"## {strategy_description}",
             f"## Agent Execution Order: {' → '.join([a.value for a in sequence_pattern.agent_order])}",
             "",
             "## Executive Summary",
             f"This research synthesis presents findings from a {len(agent_results)}-agent sequential analysis "
-            f"following the {sequence_pattern.strategy.value} strategy. Each agent contributed specialized "
+            f"following the {strategy_value} approach. Each agent contributed specialized "
             f"insights building upon previous findings to create comprehensive understanding.",
             ""
         ]
@@ -368,7 +406,7 @@ class SequenceOptimizationEngine:
             f"**Insight Redundancy:** {((len(all_insights) - len(unique_insights)) / max(len(all_insights), 1) * 100):.1f}%",
             "",
             "## Sequence Effectiveness",
-            f"The {sequence_pattern.strategy.value} sequence demonstrated effective knowledge building "
+            f"The {strategy_value} sequence demonstrated effective knowledge building "
             f"with each agent contributing specialized perspectives that enhanced overall research quality.",
             ""
         ])
@@ -577,16 +615,65 @@ class SequenceOptimizationEngine:
         # Analyze the query first
         analysis = self.analyze_research_query(research_topic)
         
-        # Get the recommended sequence pattern
-        recommended_pattern = SEQUENCE_PATTERNS[analysis.primary_recommendation]
-        
-        logger.info(f"Executing recommended sequence: {analysis.primary_recommendation.value} "
-                   f"for query: '{research_topic}'")
+        # Get the recommended sequence pattern (maintains backward compatibility)
+        if hasattr(analysis, 'primary_recommendation') and analysis.primary_recommendation in SEQUENCE_PATTERNS:
+            recommended_pattern = SEQUENCE_PATTERNS[analysis.primary_recommendation]
+            logger.info(f"Executing recommended sequence: {analysis.primary_recommendation.value} "
+                       f"for query: '{research_topic}'")
+        else:
+            # Fallback to a default pattern if the recommendation isn't found
+            recommended_pattern = SEQUENCE_PATTERNS[SequenceStrategy.THEORY_FIRST]
+            logger.warning(f"Using fallback sequence pattern for query: '{research_topic}'")
         
         # Execute the recommended sequence
         result = await self.execute_sequence(recommended_pattern, research_topic)
         
         return result, analysis
+    
+    async def execute_dynamic_sequence(
+        self, 
+        agent_order: List[AgentType], 
+        research_topic: str,
+        description: str = "Custom dynamic sequence",
+        reasoning: str = "User-defined agent ordering",
+        confidence_score: float = 0.8,
+        expected_advantages: Optional[List[str]] = None,
+        execution_id: Optional[str] = None
+    ) -> SequenceResult:
+        """Execute a custom dynamic sequence pattern.
+        
+        Args:
+            agent_order: The ordered list of agents to execute
+            research_topic: The research topic to investigate
+            description: Description of the sequence pattern
+            reasoning: Reasoning for this agent ordering
+            confidence_score: Confidence in this sequence choice (0.0-1.0)
+            expected_advantages: List of expected advantages of this ordering
+            execution_id: Optional execution ID for metrics tracking
+            
+        Returns:
+            SequenceResult with complete execution data and metrics
+        """
+        if expected_advantages is None:
+            expected_advantages = ["Custom agent ordering", "Flexible research approach"]
+        
+        # Create dynamic sequence pattern
+        dynamic_pattern = DynamicSequencePattern(
+            agent_order=agent_order,
+            description=description,
+            reasoning=reasoning,
+            confidence_score=confidence_score,
+            expected_advantages=expected_advantages,
+            topic_alignment_score=confidence_score  # Use confidence as alignment score
+        )
+        
+        logger.info(f"Executing custom dynamic sequence: {' → '.join([a.value for a in agent_order])} "
+                   f"for query: '{research_topic}'")
+        
+        # Execute the dynamic sequence
+        result = await self.execute_sequence(dynamic_pattern, research_topic, execution_id)
+        
+        return result
     
     async def intelligent_sequence_comparison(
         self, 
@@ -684,9 +771,15 @@ class SequenceOptimizationEngine:
         # Execute all sequences
         sequence_results = []
         for strategy in strategies:
-            pattern = SEQUENCE_PATTERNS[strategy]
-            result = await self.execute_sequence(pattern, research_topic)
-            sequence_results.append(result)
+            if strategy in SEQUENCE_PATTERNS:
+                pattern = SEQUENCE_PATTERNS[strategy]
+                result = await self.execute_sequence(pattern, research_topic)
+                sequence_results.append(result)
+            else:
+                logger.warning(f"Strategy {strategy} not found in SEQUENCE_PATTERNS, skipping")
+        
+        if not sequence_results:
+            raise ValueError("No valid sequence patterns found for comparison")
         
         # Calculate comparative metrics
         comparison = self.metrics_calculator.compare_sequence_results(sequence_results)
@@ -717,8 +810,11 @@ class SequenceOptimizationEngine:
         comparisons = []
         for i, topic in enumerate(research_topics, 1):
             logger.info(f"Analyzing topic {i}/{len(research_topics)}: {topic}")
-            comparison = await self.compare_sequences(topic, strategies)
-            comparisons.append(comparison)
+            try:
+                comparison = await self.compare_sequences(topic, strategies)
+                comparisons.append(comparison)
+            except Exception as e:
+                logger.error(f"Error analyzing topic '{topic}': {e}")
         
         logger.info(f"Batch analysis completed: {len(comparisons)} comparisons")
         return comparisons
@@ -728,17 +824,24 @@ class SequenceOptimizationEngine:
         if not self.execution_history:
             return {"message": "No sequence executions recorded"}
         
-        # Aggregate performance by strategy
+        # Aggregate performance by strategy/pattern
         strategy_performance = {}
         for result in self.execution_history:
-            strategy = result.sequence_pattern.strategy
-            if strategy not in strategy_performance:
-                strategy_performance[strategy] = []
-            strategy_performance[strategy].append(result.overall_productivity_metrics.tool_productivity)
+            # Handle both SequencePattern and DynamicSequencePattern
+            if hasattr(result.sequence_pattern, 'strategy') and result.sequence_pattern.strategy:
+                strategy_key = result.sequence_pattern.strategy
+            elif hasattr(result.sequence_pattern, 'sequence_id'):
+                strategy_key = f"dynamic_{result.sequence_pattern.sequence_id[:8]}"
+            else:
+                strategy_key = "unknown"
+            
+            if strategy_key not in strategy_performance:
+                strategy_performance[strategy_key] = []
+            strategy_performance[strategy_key].append(result.overall_productivity_metrics.tool_productivity)
         
         # Calculate averages
         strategy_averages = {
-            strategy: sum(scores) / len(scores)
+            str(strategy): sum(scores) / len(scores)
             for strategy, scores in strategy_performance.items()
         }
         
