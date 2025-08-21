@@ -3,12 +3,17 @@
 This module implements the core Tool Productivity metrics (Quality/Agent_Calls) and
 provides detailed analysis capabilities for comparing sequence effectiveness and
 identifying >20% variance in productivity outcomes.
+
+Enhanced with real-time calculation capabilities and streaming support for
+production-ready metrics aggregation and monitoring.
 """
 
+import asyncio
 import logging
 import statistics
+import time
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import AsyncIterator, Dict, List, Optional, Tuple, Union
 
 from open_deep_research.sequencing.models import (
     AgentExecutionResult,
@@ -23,12 +28,30 @@ logger = logging.getLogger(__name__)
 
 
 class MetricsCalculator:
-    """Calculator for tool productivity and sequence comparison metrics."""
+    """Calculator for tool productivity and sequence comparison metrics.
     
-    def __init__(self):
-        """Initialize the metrics calculator."""
+    Enhanced with real-time calculation capabilities for streaming metrics
+    during sequence execution and parallel processing.
+    """
+    
+    def __init__(self, enable_streaming: bool = True):
+        """Initialize the metrics calculator.
+        
+        Args:
+            enable_streaming: Enable real-time metrics streaming capabilities
+        """
         self.historical_baselines = {}
         self.variance_threshold = 0.2  # 20% variance threshold
+        self.enable_streaming = enable_streaming
+        
+        # Real-time tracking
+        self._active_calculations = {}
+        self._streaming_subscribers = set()
+        self._calculation_history = []
+        
+        # Performance optimization
+        self._cached_calculations = {}
+        self._last_cache_cleanup = time.time()
     
     def calculate_sequence_productivity(
         self,
@@ -73,21 +96,21 @@ class MetricsCalculator:
         context_metrics = self._calculate_context_usage(agent_results, insight_transitions)
         
         return ToolProductivityMetrics(
-            tool_productivity=tool_productivity,
-            research_quality_score=research_quality,
-            total_agent_calls=total_agent_calls,
-            agent_efficiency=agent_efficiency,
-            context_efficiency=context_efficiency,
-            time_to_value=time_to_value,
-            insight_novelty=quality_breakdown['novelty'],
-            insight_relevance=quality_breakdown['relevance'], 
-            insight_actionability=quality_breakdown['actionability'],
-            research_completeness=quality_breakdown['completeness'],
+            tool_productivity=max(0.0, tool_productivity),  # Ensure >= 0
+            research_quality_score=max(0.0, min(1.0, research_quality)),  # Clamp to [0, 1]
+            total_agent_calls=max(1, total_agent_calls),  # Ensure >= 1
+            agent_efficiency=max(0.0, agent_efficiency),  # Ensure >= 0
+            context_efficiency=max(0.0, context_efficiency),  # Ensure >= 0
+            time_to_value=max(0.0, time_to_value),  # Ensure >= 0
+            insight_novelty=max(0.0, min(1.0, quality_breakdown['novelty'])),  # Clamp to [0, 1]
+            insight_relevance=max(0.0, min(1.0, quality_breakdown['relevance'])),  # Clamp to [0, 1]
+            insight_actionability=max(0.0, min(1.0, quality_breakdown['actionability'])),  # Clamp to [0, 1]
+            research_completeness=max(0.0, min(1.0, quality_breakdown['completeness'])),  # Clamp to [0, 1]
             useful_insights_count=performance_metrics['useful_insights'],
             redundant_research_count=performance_metrics['redundant_research'],
             cognitive_offloading_incidents=performance_metrics['cognitive_offloading'],
-            relevant_context_used=context_metrics['relevant_used'],
-            total_context_available=context_metrics['total_available']
+            relevant_context_used=max(0.0, min(1.0, context_metrics['relevant_used'])),  # Clamp to [0, 1]
+            total_context_available=max(0.0, min(1.0, context_metrics['total_available']))  # Clamp to [0, 1]
         )
     
     def _create_empty_metrics(self) -> ToolProductivityMetrics:
@@ -95,7 +118,7 @@ class MetricsCalculator:
         return ToolProductivityMetrics(
             tool_productivity=0.0,
             research_quality_score=0.0,
-            total_agent_calls=0,
+            total_agent_calls=1,  # Must be >= 1 according to model validation
             agent_efficiency=0.0,
             context_efficiency=0.0,
             time_to_value=0.0,
@@ -537,3 +560,291 @@ class MetricsCalculator:
                 }
         
         return trends
+    
+    # Real-time streaming capabilities
+    
+    async def calculate_real_time_productivity(
+        self,
+        sequence_id: str,
+        agent_results: List[AgentExecutionResult],
+        insight_transitions: List[InsightTransition] = None,
+        partial: bool = True
+    ) -> ToolProductivityMetrics:
+        """Calculate productivity metrics in real-time for streaming.
+        
+        Args:
+            sequence_id: Unique identifier for the sequence
+            agent_results: Current agent results (may be partial)
+            insight_transitions: Current insight transitions
+            partial: Whether this is a partial calculation
+            
+        Returns:
+            ToolProductivityMetrics with current state
+        """
+        if insight_transitions is None:
+            insight_transitions = []
+            
+        # Use cached calculation if available and recent
+        cache_key = f"{sequence_id}_{len(agent_results)}_{len(insight_transitions)}"
+        if cache_key in self._cached_calculations:
+            cached_time, cached_result = self._cached_calculations[cache_key]
+            if time.time() - cached_time < 5.0:  # Cache for 5 seconds
+                return cached_result
+        
+        # Calculate total duration for partial results
+        if agent_results:
+            total_duration = sum(r.execution_duration for r in agent_results)
+        else:
+            total_duration = 0.0
+        
+        # Calculate metrics
+        metrics = self.calculate_sequence_productivity(
+            agent_results, insight_transitions, total_duration
+        )
+        
+        # Cache the result
+        self._cached_calculations[cache_key] = (time.time(), metrics)
+        
+        # Track active calculation
+        self._active_calculations[sequence_id] = {
+            'last_update': time.time(),
+            'agent_count': len(agent_results),
+            'metrics': metrics,
+            'partial': partial
+        }
+        
+        # Notify streaming subscribers
+        if self.enable_streaming and self._streaming_subscribers:
+            await self._notify_streaming_subscribers(sequence_id, metrics, partial)
+        
+        # Cleanup old cache entries periodically
+        if time.time() - self._last_cache_cleanup > 300:  # 5 minutes
+            await self._cleanup_cache()
+        
+        return metrics
+    
+    async def stream_productivity_updates(
+        self,
+        sequence_id: Optional[str] = None
+    ) -> AsyncIterator[Tuple[str, ToolProductivityMetrics, bool]]:
+        """Stream real-time productivity updates.
+        
+        Args:
+            sequence_id: Optional sequence ID to filter updates
+            
+        Yields:
+            Tuple of (sequence_id, metrics, is_partial)
+        """
+        if not self.enable_streaming:
+            raise ValueError("Streaming not enabled for this calculator")
+        
+        # Create subscriber queue
+        subscriber_queue = asyncio.Queue(maxsize=100)
+        self._streaming_subscribers.add(subscriber_queue)
+        
+        try:
+            while True:
+                try:
+                    # Wait for update with timeout
+                    update = await asyncio.wait_for(subscriber_queue.get(), timeout=30.0)
+                    
+                    # Filter by sequence_id if specified
+                    if sequence_id is None or update['sequence_id'] == sequence_id:
+                        yield (update['sequence_id'], update['metrics'], update['partial'])
+                        
+                except asyncio.TimeoutError:
+                    # Send heartbeat
+                    continue
+                except asyncio.CancelledError:
+                    break
+                    
+        finally:
+            self._streaming_subscribers.discard(subscriber_queue)
+    
+    async def _notify_streaming_subscribers(
+        self,
+        sequence_id: str,
+        metrics: ToolProductivityMetrics,
+        partial: bool
+    ):
+        """Notify all streaming subscribers of metrics update."""
+        
+        update = {
+            'sequence_id': sequence_id,
+            'metrics': metrics,
+            'partial': partial,
+            'timestamp': time.time()
+        }
+        
+        # Send to all subscribers
+        disconnected_subscribers = set()
+        for subscriber in self._streaming_subscribers:
+            try:
+                subscriber.put_nowait(update)
+            except asyncio.QueueFull:
+                logger.warning(f"Subscriber queue full for sequence {sequence_id}")
+            except Exception as e:
+                logger.error(f"Error notifying subscriber: {e}")
+                disconnected_subscribers.add(subscriber)
+        
+        # Remove disconnected subscribers
+        self._streaming_subscribers -= disconnected_subscribers
+    
+    async def _cleanup_cache(self):
+        """Clean up old cached calculations."""
+        current_time = time.time()
+        
+        # Remove old cache entries
+        old_cache_keys = [
+            key for key, (cache_time, _) in self._cached_calculations.items()
+            if current_time - cache_time > 300  # 5 minutes
+        ]
+        
+        for key in old_cache_keys:
+            del self._cached_calculations[key]
+        
+        # Remove old active calculations
+        old_active_keys = [
+            key for key, data in self._active_calculations.items()
+            if current_time - data['last_update'] > 3600  # 1 hour
+        ]
+        
+        for key in old_active_keys:
+            del self._active_calculations[key]
+        
+        self._last_cache_cleanup = current_time
+        
+        logger.debug(f"Cleaned up {len(old_cache_keys)} cache entries and {len(old_active_keys)} active calculations")
+    
+    def get_active_calculations(self) -> Dict[str, Dict]:
+        """Get currently active metric calculations."""
+        return self._active_calculations.copy()
+    
+    def calculate_incremental_productivity(
+        self,
+        sequence_id: str,
+        new_agent_result: AgentExecutionResult,
+        previous_metrics: Optional[ToolProductivityMetrics] = None
+    ) -> ToolProductivityMetrics:
+        """Calculate productivity metrics incrementally for better performance.
+        
+        Args:
+            sequence_id: Sequence identifier
+            new_agent_result: Newly completed agent result
+            previous_metrics: Previous metrics state for incremental calculation
+            
+        Returns:
+            Updated ToolProductivityMetrics
+        """
+        # Get current active calculation
+        active_calc = self._active_calculations.get(sequence_id)
+        
+        if active_calc and previous_metrics:
+            # Incremental calculation
+            return self._calculate_incremental_update(
+                previous_metrics, new_agent_result, active_calc['agent_count'] + 1
+            )
+        else:
+            # Full calculation (fallback)
+            return self.calculate_sequence_productivity([new_agent_result], [], new_agent_result.execution_duration)
+    
+    def _calculate_incremental_update(
+        self,
+        previous_metrics: ToolProductivityMetrics,
+        new_agent_result: AgentExecutionResult,
+        total_agents: int
+    ) -> ToolProductivityMetrics:
+        """Perform incremental metrics calculation for performance."""
+        
+        # Calculate new totals
+        new_total_calls = previous_metrics.total_agent_calls + new_agent_result.tool_calls_made
+        new_insights_count = previous_metrics.useful_insights_count + len(new_agent_result.key_insights)
+        
+        # Calculate weighted averages for quality metrics
+        weight_factor = 1.0 / total_agents
+        previous_weight = (total_agents - 1) / total_agents
+        
+        # Update quality scores (weighted average)
+        new_research_quality = (
+            previous_metrics.research_quality_score * previous_weight +
+            new_agent_result.research_depth_score * weight_factor
+        )
+        
+        new_novelty = (
+            previous_metrics.insight_novelty * previous_weight +
+            new_agent_result.novelty_score * weight_factor
+        )
+        
+        # Calculate new tool productivity
+        new_tool_productivity = new_research_quality / new_total_calls if new_total_calls > 0 else 0.0
+        
+        # Calculate new agent efficiency
+        new_agent_efficiency = new_insights_count / new_total_calls if new_total_calls > 0 else 0.0
+        
+        # Create updated metrics
+        return ToolProductivityMetrics(
+            tool_productivity=max(0.0, new_tool_productivity),
+            research_quality_score=max(0.0, min(1.0, new_research_quality)),
+            total_agent_calls=max(1, new_total_calls),
+            agent_efficiency=max(0.0, new_agent_efficiency),
+            context_efficiency=previous_metrics.context_efficiency,  # Keep previous
+            time_to_value=previous_metrics.time_to_value or new_agent_result.execution_duration,
+            insight_novelty=max(0.0, min(1.0, new_novelty)),
+            insight_relevance=previous_metrics.insight_relevance,  # Keep previous
+            insight_actionability=previous_metrics.insight_actionability,  # Keep previous
+            research_completeness=previous_metrics.research_completeness,  # Keep previous
+            useful_insights_count=new_insights_count,
+            redundant_research_count=previous_metrics.redundant_research_count,
+            cognitive_offloading_incidents=previous_metrics.cognitive_offloading_incidents + (
+                1 if new_agent_result.cognitive_offloading_detected else 0
+            ),
+            relevant_context_used=previous_metrics.relevant_context_used,
+            total_context_available=previous_metrics.total_context_available
+        )
+    
+    async def get_productivity_trends(
+        self,
+        sequence_id: str,
+        window_size: int = 10
+    ) -> Dict[str, List[float]]:
+        """Get productivity trends for a sequence.
+        
+        Args:
+            sequence_id: Sequence identifier
+            window_size: Number of recent data points to include
+            
+        Returns:
+            Dictionary with trend data for different metrics
+        """
+        active_calc = self._active_calculations.get(sequence_id)
+        if not active_calc:
+            return {}
+        
+        # Get recent calculation history for this sequence
+        sequence_history = [
+            entry for entry in self._calculation_history
+            if entry.get('sequence_id') == sequence_id
+        ][-window_size:]
+        
+        if not sequence_history:
+            return {}
+        
+        trends = {
+            'tool_productivity': [entry['metrics'].tool_productivity for entry in sequence_history],
+            'research_quality': [entry['metrics'].research_quality_score for entry in sequence_history],
+            'agent_efficiency': [entry['metrics'].agent_efficiency for entry in sequence_history],
+            'timestamps': [entry['timestamp'] for entry in sequence_history]
+        }
+        
+        return trends
+    
+    def get_streaming_stats(self) -> Dict[str, Union[int, float]]:
+        """Get statistics about streaming performance."""
+        return {
+            'active_subscribers': len(self._streaming_subscribers),
+            'active_calculations': len(self._active_calculations),
+            'cached_calculations': len(self._cached_calculations),
+            'calculation_history_size': len(self._calculation_history),
+            'streaming_enabled': self.enable_streaming,
+            'last_cache_cleanup': self._last_cache_cleanup
+        }

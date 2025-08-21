@@ -8,13 +8,17 @@ productivity outcomes in research tasks.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
 
 from open_deep_research.sequencing.models import (
     AgentExecutionResult,
     AgentType,
+    QueryType,
+    ResearchDomain,
+    ScopeBreadth,
+    SequenceAnalysis,
     SequenceComparison,
     SequencePattern,
     SequenceResult,
@@ -30,22 +34,43 @@ from open_deep_research.sequencing.specialized_agents import (
     TechnicalTrendsAgent
 )
 from open_deep_research.sequencing.metrics import MetricsCalculator
+from open_deep_research.sequencing.sequence_selector import SequenceAnalyzer
 
 logger = logging.getLogger(__name__)
+
+# Import metrics aggregator for real-time integration
+try:
+    from open_deep_research.sequencing.metrics_aggregator import MetricsAggregator
+except ImportError:
+    MetricsAggregator = None
 
 
 class SequenceOptimizationEngine:
     """Engine for executing and optimizing agent sequence patterns."""
     
-    def __init__(self, config: RunnableConfig):
+    def __init__(
+        self, 
+        config: RunnableConfig,
+        metrics_aggregator: Optional['MetricsAggregator'] = None,
+        enable_real_time_metrics: bool = True
+    ):
         """Initialize the sequence optimization engine.
         
         Args:
             config: Runtime configuration for agents and models
+            metrics_aggregator: Optional metrics aggregator for real-time tracking
+            enable_real_time_metrics: Enable real-time metrics collection
         """
         self.config = config
         self.research_director = SupervisorResearchDirector(config)
-        self.metrics_calculator = MetricsCalculator()
+        self.metrics_calculator = MetricsCalculator(enable_streaming=enable_real_time_metrics)
+        self.sequence_analyzer = SequenceAnalyzer()
+        
+        # Metrics integration
+        self.metrics_aggregator = metrics_aggregator
+        self.enable_real_time_metrics = enable_real_time_metrics
+        self._current_execution_id: Optional[str] = None
+        self._current_strategy: Optional[SequenceStrategy] = None
         
         # Agent registry
         self.agents = {
@@ -57,22 +82,29 @@ class SequenceOptimizationEngine:
         # Execution history
         self.execution_history: List[SequenceResult] = []
         self.comparison_history: List[SequenceComparison] = []
+        self.analysis_history: List[SequenceAnalysis] = []
     
     async def execute_sequence(
         self, 
         sequence_pattern: SequencePattern, 
-        research_topic: str
+        research_topic: str,
+        execution_id: Optional[str] = None
     ) -> SequenceResult:
         """Execute a complete sequence pattern for a research topic.
         
         Args:
             sequence_pattern: The sequence pattern to execute
             research_topic: The research topic to investigate
+            execution_id: Optional execution ID for metrics tracking
             
         Returns:
             SequenceResult with complete execution data and metrics
         """
         logger.info(f"Starting sequence execution: {sequence_pattern.strategy.value} for '{research_topic}'")
+        
+        # Set up metrics tracking
+        self._current_execution_id = execution_id
+        self._current_strategy = sequence_pattern.strategy
         
         start_time = datetime.utcnow()
         agent_results: List[AgentExecutionResult] = []
@@ -80,6 +112,14 @@ class SequenceOptimizationEngine:
         
         # Track cumulative insights for linear context passing
         previous_insights: List[str] = []
+        
+        # Initialize metrics collection if aggregator is available
+        if self.metrics_aggregator and execution_id:
+            self.metrics_aggregator.collect_sequence_metrics(
+                execution_id, 
+                sequence_pattern.strategy,
+                status_update="running"
+            )
         
         try:
             # Execute each agent in sequence
@@ -112,6 +152,29 @@ class SequenceOptimizationEngine:
                 # Execute agent research
                 agent_result = await self.agents[agent_type].execute_research(context)
                 agent_results.append(agent_result)
+                
+                # Real-time metrics collection
+                if self.enable_real_time_metrics and self.metrics_aggregator and execution_id:
+                    try:
+                        # Collect metrics for this agent completion
+                        self.metrics_aggregator.collect_sequence_metrics(
+                            execution_id,
+                            sequence_pattern.strategy,
+                            agent_result=agent_result
+                        )
+                        
+                        # Calculate real-time productivity
+                        await self.metrics_calculator.calculate_real_time_productivity(
+                            sequence_id=f"{execution_id}_{sequence_pattern.strategy.value}",
+                            agent_results=agent_results,
+                            insight_transitions=insight_transitions,
+                            partial=position < len(sequence_pattern.agent_order)
+                        )
+                        
+                        logger.debug(f"Real-time metrics updated for agent {position}/{len(sequence_pattern.agent_order)}")
+                        
+                    except Exception as e:
+                        logger.warning(f"Error updating real-time metrics: {e}")
                 
                 # Track insight productivity if not first agent
                 if position > 1:
@@ -175,11 +238,34 @@ class SequenceOptimizationEngine:
                     insight for result in agent_results for insight in result.key_insights
                 )),
                 research_breadth_score=self._calculate_research_breadth(agent_results),
-                research_depth_score=sum(r.research_depth_score for r in agent_results) / len(agent_results),
+                research_depth_score=sum(r.research_depth_score for r in agent_results) / max(len(agent_results), 1),
                 final_quality_score=self._calculate_final_quality(agent_results),
                 completeness_score=self._calculate_completeness_score(agent_results),
                 actionability_score=self._calculate_actionability_score(agent_results)
             )
+            
+            # Final metrics collection
+            if self.enable_real_time_metrics and self.metrics_aggregator and execution_id:
+                try:
+                    # Mark sequence as completed
+                    self.metrics_aggregator.collect_sequence_metrics(
+                        execution_id,
+                        sequence_pattern.strategy,
+                        status_update="completed"
+                    )
+                    
+                    # Final real-time productivity calculation
+                    await self.metrics_calculator.calculate_real_time_productivity(
+                        sequence_id=f"{execution_id}_{sequence_pattern.strategy.value}",
+                        agent_results=agent_results,
+                        insight_transitions=insight_transitions,
+                        partial=False
+                    )
+                    
+                    logger.info(f"Final metrics collected for sequence {sequence_pattern.strategy.value}")
+                    
+                except Exception as e:
+                    logger.warning(f"Error collecting final metrics: {e}")
             
             # Store in execution history
             self.execution_history.append(sequence_result)
@@ -190,6 +276,18 @@ class SequenceOptimizationEngine:
             return sequence_result
             
         except Exception as e:
+            # Report error to metrics aggregator
+            if self.metrics_aggregator and execution_id:
+                try:
+                    self.metrics_aggregator.collect_sequence_metrics(
+                        execution_id,
+                        sequence_pattern.strategy,
+                        status_update="failed",
+                        error=str(e)
+                    )
+                except Exception as metrics_error:
+                    logger.warning(f"Error reporting execution failure to metrics: {metrics_error}")
+            
             logger.error(f"Error in sequence execution: {e}")
             raise
     
@@ -267,7 +365,7 @@ class SequenceOptimizationEngine:
             "## Cross-Agent Analysis",
             f"**Total Insights Generated:** {len(all_insights)}",
             f"**Unique Insights:** {len(unique_insights)}",
-            f"**Insight Redundancy:** {((len(all_insights) - len(unique_insights)) / len(all_insights) * 100):.1f}%",
+            f"**Insight Redundancy:** {((len(all_insights) - len(unique_insights)) / max(len(all_insights), 1) * 100):.1f}%",
             "",
             "## Sequence Effectiveness",
             f"The {sequence_pattern.strategy.value} sequence demonstrated effective knowledge building "
@@ -402,6 +500,167 @@ class SequenceOptimizationEngine:
                 actionability_scores.append(0.0)
         
         return sum(actionability_scores) / len(actionability_scores)
+    
+    def analyze_research_query(self, research_topic: str) -> SequenceAnalysis:
+        """Analyze a research query and recommend optimal sequence strategies.
+        
+        Args:
+            research_topic: The research query/topic to analyze
+            
+        Returns:
+            SequenceAnalysis with recommendations and detailed reasoning
+        """
+        logger.info(f"Analyzing research query for sequence recommendation: '{research_topic[:100]}...'")
+        
+        # Use the sequence analyzer to analyze the query
+        analysis = self.sequence_analyzer.analyze_query(research_topic)
+        
+        # Convert string enums to proper enum types for consistency
+        analysis_dict = {
+            "analysis_id": analysis.analysis_id,
+            "query_type": QueryType(analysis.query_type),
+            "research_domain": ResearchDomain(analysis.research_domain),
+            "complexity_score": analysis.complexity_score,
+            "scope_breadth": ScopeBreadth(analysis.scope_breadth),
+            "recommended_sequences": analysis.recommended_sequences,
+            "primary_recommendation": analysis.primary_recommendation,
+            "confidence": analysis.confidence,
+            "explanation": analysis.explanation,
+            "reasoning": analysis.reasoning,
+            "query_characteristics": analysis.query_characteristics,
+            "original_query": research_topic,
+            "analysis_timestamp": analysis.analysis_timestamp
+        }
+        
+        # Create proper SequenceAnalysis model instance
+        sequence_analysis = SequenceAnalysis(**analysis_dict)
+        
+        # Store in analysis history
+        self.analysis_history.append(sequence_analysis)
+        
+        logger.info(f"Query analysis complete: {sequence_analysis.primary_recommendation.value} "
+                   f"(confidence: {sequence_analysis.confidence:.2f})")
+        
+        return sequence_analysis
+    
+    def explain_sequence_choice(self, analysis: SequenceAnalysis) -> str:
+        """Generate detailed explanation for sequence choice.
+        
+        Args:
+            analysis: The sequence analysis results
+            
+        Returns:
+            Detailed explanation of why the sequence was chosen
+        """
+        return analysis.explanation
+    
+    def get_all_sequence_explanations(self, analysis: SequenceAnalysis) -> Dict[SequenceStrategy, str]:
+        """Get explanations for all sequence strategies.
+        
+        Args:
+            analysis: The sequence analysis results
+            
+        Returns:
+            Dictionary mapping each strategy to its explanation
+        """
+        return self.sequence_analyzer.explain_all_sequences(analysis)
+    
+    async def execute_recommended_sequence(self, research_topic: str) -> Tuple[SequenceResult, SequenceAnalysis]:
+        """Analyze query and execute the recommended sequence.
+        
+        Args:
+            research_topic: The research topic to investigate
+            
+        Returns:
+            Tuple of (SequenceResult, SequenceAnalysis)
+        """
+        # Analyze the query first
+        analysis = self.analyze_research_query(research_topic)
+        
+        # Get the recommended sequence pattern
+        recommended_pattern = SEQUENCE_PATTERNS[analysis.primary_recommendation]
+        
+        logger.info(f"Executing recommended sequence: {analysis.primary_recommendation.value} "
+                   f"for query: '{research_topic}'")
+        
+        # Execute the recommended sequence
+        result = await self.execute_sequence(recommended_pattern, research_topic)
+        
+        return result, analysis
+    
+    async def intelligent_sequence_comparison(
+        self, 
+        research_topic: str,
+        include_analysis: bool = True
+    ) -> Tuple[SequenceComparison, Optional[SequenceAnalysis]]:
+        """Perform intelligent sequence comparison with analysis explanation.
+        
+        Args:
+            research_topic: The research topic to investigate
+            include_analysis: Whether to include query analysis
+            
+        Returns:
+            Tuple of (SequenceComparison, Optional[SequenceAnalysis])
+        """
+        analysis = None
+        if include_analysis:
+            # Analyze the query first to provide context
+            analysis = self.analyze_research_query(research_topic)
+            logger.info(f"Query analysis recommends {analysis.primary_recommendation.value} "
+                       f"(confidence: {analysis.confidence:.2f})")
+        
+        # Execute comparison of all sequences
+        comparison = await self.compare_sequences(research_topic)
+        
+        # Log analysis vs actual results if analysis was performed
+        if analysis:
+            actual_best = comparison.highest_productivity_sequence
+            predicted_best = analysis.primary_recommendation
+            
+            logger.info(f"Analysis predicted: {predicted_best.value}, "
+                       f"Actual best performer: {actual_best.value}, "
+                       f"Match: {predicted_best == actual_best}")
+        
+        return comparison, analysis
+    
+    def get_analysis_summary(self) -> Dict:
+        """Get a summary of all query analyses performed."""
+        if not self.analysis_history:
+            return {"message": "No query analyses recorded"}
+        
+        # Aggregate analysis results
+        query_types = {}
+        domains = {}
+        recommendations = {}
+        avg_confidence = 0.0
+        
+        for analysis in self.analysis_history:
+            # Count query types
+            query_type = analysis.query_type.value
+            query_types[query_type] = query_types.get(query_type, 0) + 1
+            
+            # Count domains
+            domain = analysis.research_domain.value
+            domains[domain] = domains.get(domain, 0) + 1
+            
+            # Count recommendations
+            rec = analysis.primary_recommendation.value
+            recommendations[rec] = recommendations.get(rec, 0) + 1
+            
+            # Sum confidence
+            avg_confidence += analysis.confidence
+        
+        avg_confidence /= len(self.analysis_history)
+        
+        return {
+            "total_analyses": len(self.analysis_history),
+            "query_types_distribution": query_types,
+            "research_domains_distribution": domains,
+            "recommendations_distribution": recommendations,
+            "average_confidence": avg_confidence,
+            "most_common_query_type": max(query_types.items(), key=lambda x: x[1])[0] if query_types else None,
+            "most_recommended_sequence": max(recommendations.items(), key=lambda x: x[1])[0] if recommendations else None
+        }
     
     async def compare_sequences(
         self, 

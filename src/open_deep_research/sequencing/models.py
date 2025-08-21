@@ -7,7 +7,7 @@ agent orderings in the research process.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple, Set
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -42,40 +42,68 @@ class InsightType(Enum):
     VALIDATION_CRITERIA = "validation_criteria"
 
 
+class QueryType(Enum):
+    """Classification of research query types for sequence selection."""
+    
+    ACADEMIC_RESEARCH = "academic_research"
+    MARKET_ANALYSIS = "market_analysis"
+    TECHNICAL_FEASIBILITY = "technical_feasibility"
+    INNOVATION_EXPLORATION = "innovation_exploration"
+    COMPETITIVE_INTELLIGENCE = "competitive_intelligence"
+    TREND_ANALYSIS = "trend_analysis"
+    HYBRID_MULTI_DOMAIN = "hybrid_multi_domain"
+
+
+class ResearchDomain(Enum):
+    """Primary research domains identified in queries."""
+    
+    ACADEMIC = "academic"
+    MARKET = "market"
+    TECHNICAL = "technical"
+    HYBRID = "hybrid"
+
+
+class ScopeBreadth(Enum):
+    """Scope breadth classifications for research queries."""
+    
+    NARROW = "narrow"
+    MEDIUM = "medium"
+    BROAD = "broad"
+
+
+class SequenceAnalysis(BaseModel):
+    """Analysis results for query and sequence recommendations."""
+    
+    analysis_id: str = Field(default_factory=lambda: str(uuid4()))
+    query_type: QueryType
+    research_domain: ResearchDomain
+    complexity_score: float = Field(ge=0.0, le=1.0)
+    scope_breadth: ScopeBreadth
+    
+    # Sequence recommendations with confidence scores
+    recommended_sequences: List[Tuple[SequenceStrategy, float]] = Field(default_factory=list)
+    primary_recommendation: SequenceStrategy
+    confidence: float = Field(ge=0.0, le=1.0)
+    
+    # Analysis results
+    explanation: str
+    reasoning: Dict[str, str] = Field(default_factory=dict)
+    query_characteristics: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Metadata
+    original_query: str
+    analysis_timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
 class SequencePattern(BaseModel):
-    """Defines a specific sequence of specialized agents for research execution."""
+    """Defines a flexible sequence of specialized agents for research execution."""
     
     sequence_id: str = Field(default_factory=lambda: str(uuid4()))
-    strategy: SequenceStrategy
     agent_order: List[AgentType]
     description: str
     expected_advantages: List[str] = Field(default_factory=list)
-    
-    def __post_init__(self):
-        """Validate sequence pattern consistency."""
-        if len(self.agent_order) != 3:
-            raise ValueError("Sequence must contain exactly 3 agents")
-        
-        expected_orders = {
-            SequenceStrategy.THEORY_FIRST: [
-                AgentType.ACADEMIC, 
-                AgentType.INDUSTRY, 
-                AgentType.TECHNICAL_TRENDS
-            ],
-            SequenceStrategy.MARKET_FIRST: [
-                AgentType.INDUSTRY, 
-                AgentType.ACADEMIC, 
-                AgentType.TECHNICAL_TRENDS
-            ],
-            SequenceStrategy.FUTURE_BACK: [
-                AgentType.TECHNICAL_TRENDS, 
-                AgentType.ACADEMIC, 
-                AgentType.INDUSTRY
-            ]
-        }
-        
-        if self.agent_order != expected_orders[self.strategy]:
-            raise ValueError(f"Agent order {self.agent_order} doesn't match strategy {self.strategy}")
+    confidence_score: float = Field(ge=0.0, le=1.0, default=1.0)
+    reasoning: str = Field(default="")
 
 
 class InsightTransition(BaseModel):
@@ -255,43 +283,244 @@ class AdaptiveLearningState(BaseModel):
     last_updated: datetime = Field(default_factory=datetime.utcnow)
 
 
-# Predefined sequence patterns for the three strategic approaches
-THEORY_FIRST_PATTERN = SequencePattern(
-    strategy=SequenceStrategy.THEORY_FIRST,
-    agent_order=[AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS],
-    description="Start with theoretical foundation, then explore market applications, finish with technical implementation",
-    expected_advantages=[
-        "Strong theoretical grounding",
-        "Evidence-based market analysis", 
-        "Technically informed implementation strategy"
-    ]
-)
+class DynamicSequencePattern(BaseModel):
+    """Dynamic sequence pattern generated based on research topic analysis."""
+    
+    sequence_id: str = Field(default_factory=lambda: str(uuid4()))
+    agent_order: List[AgentType]
+    description: str
+    reasoning: str
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    expected_advantages: List[str] = Field(default_factory=list)
+    topic_alignment_score: float = Field(ge=0.0, le=1.0, default=0.0)
+    
+    @property
+    def sequence_length(self) -> int:
+        """Get the length of this sequence."""
+        return len(self.agent_order)
+    
+    @property
+    def agent_types_used(self) -> Set[AgentType]:
+        """Get the unique agent types in this sequence."""
+        return set(self.agent_order)
 
-MARKET_FIRST_PATTERN = SequencePattern(
-    strategy=SequenceStrategy.MARKET_FIRST,
-    agent_order=[AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS],
-    description="Begin with market opportunities, validate with academic research, conclude with technical feasibility",
-    expected_advantages=[
-        "Market-driven research focus",
-        "Commercial viability emphasis",
-        "Practical implementation priority"
-    ]
-)
 
-FUTURE_BACK_PATTERN = SequencePattern(
-    strategy=SequenceStrategy.FUTURE_BACK,
-    agent_order=[AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY],
-    description="Start with future technical trends, ground in academic theory, assess market readiness",
-    expected_advantages=[
-        "Future-oriented perspective",
-        "Innovation-focused research",
-        "Technology-push market analysis"
-    ]
-)
+# Real-time metrics models for production-ready streaming
 
-# Registry of all available sequence patterns
-SEQUENCE_PATTERNS = {
-    SequenceStrategy.THEORY_FIRST: THEORY_FIRST_PATTERN,
-    SequenceStrategy.MARKET_FIRST: MARKET_FIRST_PATTERN,
-    SequenceStrategy.FUTURE_BACK: FUTURE_BACK_PATTERN
-}
+class MetricType(Enum):
+    """Types of metrics being tracked."""
+    
+    TOOL_PRODUCTIVITY = "tool_productivity"
+    RESEARCH_QUALITY = "research_quality"
+    AGENT_EFFICIENCY = "agent_efficiency"
+    TIME_TO_VALUE = "time_to_value"
+    CONTEXT_EFFICIENCY = "context_efficiency"
+    INSIGHT_QUALITY = "insight_quality"
+    EXECUTION_PROGRESS = "execution_progress"
+    RESOURCE_USAGE = "resource_usage"
+
+
+class MetricsUpdateType(Enum):
+    """Types of metrics updates for real-time streaming."""
+    
+    REAL_TIME = "real_time"
+    SNAPSHOT = "snapshot"
+    COMPARISON = "comparison"
+    WINNER_DETECTED = "winner_detected"
+    EXECUTION_STARTED = "execution_started"
+    EXECUTION_COMPLETED = "execution_completed"
+    AGENT_COMPLETED = "agent_completed"
+    ERROR = "error"
+
+
+class SequenceMetrics(BaseModel):
+    """Real-time metrics for a single sequence execution."""
+    
+    sequence_id: str
+    strategy: SequenceStrategy
+    execution_id: str
+    start_time: datetime
+    
+    # Current state
+    status: str = "pending"  # pending, running, completed, failed
+    current_agent_position: int = 0
+    total_agents: int = 3
+    
+    # Real-time productivity metrics
+    current_tool_productivity: float = 0.0
+    current_research_quality: float = 0.0
+    current_agent_efficiency: float = 0.0
+    current_context_efficiency: float = 0.0
+    
+    # Performance tracking
+    time_to_first_insight: Optional[float] = None
+    insights_generated: int = 0
+    tool_calls_made: int = 0
+    execution_duration: float = 0.0
+    
+    # Quality metrics
+    avg_insight_quality: float = 0.0
+    research_depth_score: float = 0.0
+    novelty_score: float = 0.0
+    
+    # Resource metrics
+    memory_usage_mb: float = 0.0
+    cpu_usage_percent: float = 0.0
+    api_calls_count: int = 0
+    
+    # Error tracking
+    error_count: int = 0
+    last_error: Optional[str] = None
+    
+    # Agent progression
+    agent_completion_times: List[float] = Field(default_factory=list)
+    agent_insights_count: List[int] = Field(default_factory=list)
+    agent_tool_calls: List[int] = Field(default_factory=list)
+    
+    @property
+    def progress_percent(self) -> float:
+        """Calculate progress percentage."""
+        if self.status == "completed":
+            return 100.0
+        elif self.status == "failed":
+            return 0.0
+        else:
+            return (self.current_agent_position / self.total_agents) * 100.0
+    
+    @property
+    def estimated_completion_time(self) -> Optional[datetime]:
+        """Estimate completion time based on current progress."""
+        if self.current_agent_position == 0 or self.status == "completed":
+            return None
+        
+        if not self.agent_completion_times:
+            return None
+        
+        avg_time_per_agent = sum(self.agent_completion_times) / len(self.agent_completion_times)
+        remaining_agents = self.total_agents - self.current_agent_position
+        estimated_remaining_seconds = avg_time_per_agent * remaining_agents
+        
+        from datetime import timedelta
+        return datetime.utcnow() + timedelta(seconds=estimated_remaining_seconds)
+
+
+class ParallelMetrics(BaseModel):
+    """Aggregated metrics across all parallel sequences."""
+    
+    execution_id: str
+    start_time: datetime
+    sequence_count: int
+    
+    # Comparative metrics
+    best_strategy: Optional[SequenceStrategy] = None
+    best_productivity_score: float = 0.0
+    productivity_variance: float = 0.0
+    significant_difference_detected: bool = False
+    
+    # Aggregate performance
+    total_insights_generated: int = 0
+    total_tool_calls: int = 0
+    average_research_quality: float = 0.0
+    average_agent_efficiency: float = 0.0
+    
+    # Resource metrics
+    peak_memory_usage: float = 0.0
+    average_cpu_usage: float = 0.0
+    total_api_calls: int = 0
+    
+    # Completion tracking
+    completed_sequences: int = 0
+    failed_sequences: int = 0
+    active_sequences: int = 0
+    
+    # Performance rankings
+    strategy_rankings: Dict[SequenceStrategy, float] = Field(default_factory=dict)
+    
+    # Timeline metrics
+    first_completion_time: Optional[datetime] = None
+    last_completion_time: Optional[datetime] = None
+    
+    @property
+    def completion_rate(self) -> float:
+        """Calculate completion rate percentage."""
+        total = self.completed_sequences + self.failed_sequences + self.active_sequences
+        return (self.completed_sequences / total * 100) if total > 0 else 0.0
+    
+    @property
+    def overall_tool_productivity(self) -> float:
+        """Calculate overall tool productivity."""
+        if self.total_tool_calls == 0:
+            return 0.0
+        return self.average_research_quality / self.total_tool_calls * self.total_insights_generated
+    
+    @property
+    def execution_duration(self) -> float:
+        """Get current execution duration in seconds."""
+        return (datetime.utcnow() - self.start_time).total_seconds()
+
+
+class WinnerAnalysis(BaseModel):
+    """Analysis of the winning sequence strategy."""
+    
+    winning_strategy: SequenceStrategy
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    productivity_advantage: float = Field(ge=0.0)  # Percentage advantage
+    
+    # Comparison data
+    all_strategy_scores: Dict[SequenceStrategy, float]
+    variance_threshold_exceeded: bool
+    statistical_significance: float = Field(ge=0.0, le=1.0)
+    
+    # Performance characteristics
+    winner_strengths: List[str] = Field(default_factory=list)
+    comparative_advantages: Dict[str, float] = Field(default_factory=dict)
+    
+    # Quality analysis
+    unique_insights_count: int = Field(ge=0)
+    quality_superiority: float = Field(ge=0.0)
+    efficiency_advantage: float = Field(ge=0.0)
+    
+    # Detection metadata
+    detected_at: datetime = Field(default_factory=datetime.utcnow)
+    detection_trigger: str = "variance_threshold"  # variance_threshold, completion, manual
+
+
+class MetricsUpdate(BaseModel):
+    """Real-time metrics update message for streaming."""
+    
+    update_id: str = Field(default_factory=lambda: str(uuid4()))
+    update_type: MetricsUpdateType
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    execution_id: str
+    
+    # Update data
+    sequence_metrics: Optional[Dict[SequenceStrategy, SequenceMetrics]] = None
+    parallel_metrics: Optional[ParallelMetrics] = None
+    winner_analysis: Optional[WinnerAnalysis] = None
+    
+    # Specific update data
+    updated_strategy: Optional[SequenceStrategy] = None
+    metric_deltas: Dict[str, float] = Field(default_factory=dict)
+    
+    # Context
+    message: Optional[str] = None
+    alert_level: str = "info"  # info, warning, error, success
+    
+    def to_websocket_message(self) -> Dict[str, Any]:
+        """Convert to WebSocket message format."""
+        return {
+            "update_id": self.update_id,
+            "type": self.update_type.value,
+            "timestamp": self.timestamp.isoformat(),
+            "execution_id": self.execution_id,
+            "sequence_metrics": {
+                str(k.value): v.model_dump() if hasattr(v, 'model_dump') else v.__dict__
+                for k, v in (self.sequence_metrics or {}).items()
+            },
+            "parallel_metrics": self.parallel_metrics.model_dump() if self.parallel_metrics else None,
+            "winner_analysis": self.winner_analysis.model_dump() if self.winner_analysis else None,
+            "updated_strategy": self.updated_strategy.value if self.updated_strategy else None,
+            "metric_deltas": self.metric_deltas,
+            "message": self.message,
+            "alert_level": self.alert_level
+        }

@@ -119,11 +119,11 @@ class Configuration(BaseModel):
     )
     # Model Configuration
     summarization_model: str = Field(
-        default="openai:gpt-4.1-mini",
+        default="anthropic:claude-3-haiku",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1-mini",
+                "default": "anthropic:claude-3-haiku",
                 "description": "Model for summarizing research results from Tavily search results"
             }
         }
@@ -151,11 +151,11 @@ class Configuration(BaseModel):
         }
     )
     research_model: str = Field(
-        default="openai:gpt-4.1",
+        default="anthropic:claude-3-5-sonnet",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1",
+                "default": "anthropic:claude-3-5-sonnet",
                 "description": "Model for conducting research. NOTE: Make sure your Researcher Model supports the selected search API."
             }
         }
@@ -171,11 +171,11 @@ class Configuration(BaseModel):
         }
     )
     compression_model: str = Field(
-        default="openai:gpt-4.1",
+        default="anthropic:claude-3-5-sonnet",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1",
+                "default": "anthropic:claude-3-5-sonnet",
                 "description": "Model for compressing research findings from sub-agents. NOTE: Make sure your Compression Model supports the selected search API."
             }
         }
@@ -191,11 +191,11 @@ class Configuration(BaseModel):
         }
     )
     final_report_model: str = Field(
-        default="openai:gpt-4.1",
+        default="anthropic:claude-3-5-sonnet",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1",
+                "default": "anthropic:claude-3-5-sonnet",
                 "description": "Model for writing the final report from all research findings"
             }
         }
@@ -279,6 +279,179 @@ class Configuration(BaseModel):
                 "max": 1.0,
                 "step": 0.1,
                 "description": "Minimum variance threshold for detecting significant productivity differences between sequences (20% = 0.2)"
+            }
+        }
+    )
+    
+    # Parallel Execution Configuration
+    enable_parallel_execution: bool = Field(
+        default=False,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": False,
+                "description": "Enable parallel execution of multiple sequence strategies simultaneously with real-time streaming"
+            }
+        }
+    )
+    max_parallel_sequences: int = Field(
+        default=3,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "slider",
+                "default": 3,
+                "min": 1,
+                "max": 5,
+                "step": 1,
+                "description": "Maximum number of sequences to execute in parallel (affects resource usage)"
+            }
+        }
+    )
+    parallel_execution_timeout: int = Field(
+        default=3600,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 3600,
+                "min": 300,
+                "max": 7200,
+                "description": "Timeout for parallel sequence execution in seconds (default: 1 hour)"
+            }
+        }
+    )
+    parallel_retry_attempts: int = Field(
+        default=2,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "slider",
+                "default": 2,
+                "min": 0,
+                "max": 5,
+                "step": 1,
+                "description": "Number of retry attempts for failed sequences in parallel execution"
+            }
+        }
+    )
+    
+    # Stream Configuration
+    enable_real_time_streaming: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable real-time streaming of parallel execution progress"
+            }
+        }
+    )
+    stream_buffer_size: int = Field(
+        default=1000,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 1000,
+                "min": 100,
+                "max": 10000,
+                "description": "Buffer size for streaming messages per subscription"
+            }
+        }
+    )
+    max_stream_connections: int = Field(
+        default=100,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 100,
+                "min": 10,
+                "max": 1000,
+                "description": "Maximum number of concurrent WebSocket connections for streaming"
+            }
+        }
+    )
+    stream_message_rate_limit: Optional[int] = Field(
+        default=10,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 10,
+                "min": 1,
+                "max": 100,
+                "description": "Maximum messages per second per stream subscription (None for unlimited)"
+            }
+        }
+    )
+    
+    # Resource Management
+    enable_resource_monitoring: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable monitoring of memory and CPU usage during parallel execution"
+            }
+        }
+    )
+    memory_usage_threshold_mb: float = Field(
+        default=2048.0,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 2048.0,
+                "min": 512.0,
+                "max": 16384.0,
+                "description": "Memory usage threshold in MB for parallel execution warnings"
+            }
+        }
+    )
+    cpu_usage_threshold_percent: float = Field(
+        default=80.0,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 80.0,
+                "min": 50.0,
+                "max": 95.0,
+                "description": "CPU usage threshold in percentage for parallel execution warnings"
+            }
+        }
+    )
+    
+    # Performance Optimization
+    parallel_execution_priority: str = Field(
+        default="balanced",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": "balanced",
+                "description": "Priority mode for parallel execution resource allocation",
+                "options": [
+                    {"label": "Speed (High Resource Usage)", "value": "speed"},
+                    {"label": "Balanced (Moderate Resource Usage)", "value": "balanced"},
+                    {"label": "Efficiency (Low Resource Usage)", "value": "efficiency"}
+                ]
+            }
+        }
+    )
+    enable_execution_caching: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable caching of sequence execution results to avoid redundant API calls"
+            }
+        }
+    )
+    cache_expiry_minutes: int = Field(
+        default=60,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 60,
+                "min": 10,
+                "max": 1440,
+                "description": "Cache expiry time in minutes for sequence execution results"
             }
         }
     )

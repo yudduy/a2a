@@ -1,0 +1,42 @@
+import { InputForm } from './InputForm';
+
+interface SimpleChatInterfaceProps {
+  onSubmit: (query: string) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}
+
+export const SimpleChatInterface: React.FC<SimpleChatInterfaceProps> = ({
+  onSubmit,
+  onCancel,
+  isLoading,
+}) => {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-4 flex-1 mb-16 w-full max-w-3xl mx-auto gap-4">
+      <div className="flex flex-col items-center gap-6">
+        <img
+          src="./logo-icon.svg"
+          alt="Research Assistant Logo"
+          className="h-24 w-24 text-primary"
+        />
+        <div>
+          <h1 className="text-5xl md:text-6xl font-semibold text-neutral-100 mb-3">
+            💬 Research Assistant
+          </h1>
+          <p className="text-xl md:text-2xl text-neutral-400">
+            What would you like to research?
+          </p>
+        </div>
+      </div>
+      <div className="w-full mt-4">
+        <InputForm
+          onSubmit={onSubmit}
+          isLoading={isLoading}
+          onCancel={onCancel}
+          hasHistory={false}
+          placeholder="What would you like to research?"
+        />
+      </div>
+    </div>
+  );
+};

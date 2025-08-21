@@ -33,6 +33,10 @@ Usage:
 from .models import (
     AgentType,
     AgentExecutionResult,
+    QueryType,
+    ResearchDomain,
+    ScopeBreadth,
+    SequenceAnalysis,
     SequencePattern,
     SequenceResult,
     SequenceStrategy,
@@ -45,6 +49,7 @@ from .models import (
 )
 from .research_director import SupervisorResearchDirector
 from .sequence_engine import SequenceOptimizationEngine
+from .sequence_selector import SequenceAnalyzer
 from .metrics import MetricsCalculator
 from .specialized_agents import (
     AcademicAgent,
@@ -53,14 +58,46 @@ from .specialized_agents import (
     SpecializedAgent,
     ResearchContext
 )
+from .parallel_executor import (
+    ParallelSequenceExecutor,
+    ParallelExecutionResult,
+    ParallelExecutionProgress,
+    StreamMessage,
+    ResourceMonitor,
+    parallel_executor_context
+)
+from .stream_multiplexer import (
+    StreamMultiplexer,
+    StreamSubscription,
+    WebSocketConnection,
+    ConnectionState,
+    DeliveryGuarantee,
+    MessageBuffer,
+    create_stream_multiplexer
+)
+from .langgraph_wrapper import (
+    DelegationEvent,
+    DelegationState,
+    ParallelDelegationState,
+    parallel_execution_graph,
+    get_stream_stats,
+    cleanup_streams
+)
 
 __all__ = [
     # Core Engine
     "SequenceOptimizationEngine",
     
+    # Analysis and Selection
+    "SequenceAnalyzer",
+    
     # Models and Data Structures
     "AgentType",
     "AgentExecutionResult",
+    "QueryType",
+    "ResearchDomain",
+    "ScopeBreadth",
+    "SequenceAnalysis",
     "SequencePattern", 
     "SequenceResult",
     "SequenceStrategy",
@@ -80,7 +117,32 @@ __all__ = [
     "IndustryAgent",
     "TechnicalTrendsAgent",
     "SpecializedAgent",
-    "ResearchContext"
+    "ResearchContext",
+    
+    # Parallel Execution
+    "ParallelSequenceExecutor",
+    "ParallelExecutionResult",
+    "ParallelExecutionProgress",
+    "StreamMessage",
+    "ResourceMonitor",
+    "parallel_executor_context",
+    
+    # Stream Multiplexing
+    "StreamMultiplexer",
+    "StreamSubscription", 
+    "WebSocketConnection",
+    "ConnectionState",
+    "DeliveryGuarantee",
+    "MessageBuffer",
+    "create_stream_multiplexer",
+    
+    # LangGraph Integration
+    "DelegationEvent",
+    "DelegationState",
+    "ParallelDelegationState",
+    "parallel_execution_graph",
+    "get_stream_stats",
+    "cleanup_streams"
 ]
 
 # Version information
