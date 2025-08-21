@@ -20,7 +20,6 @@ from open_deep_research.sequencing.models import (
     InsightTransition,
     SequenceComparison,
     SequenceResult,
-    SequenceStrategy,
     ToolProductivityMetrics
 )
 
@@ -370,7 +369,7 @@ class MetricsCalculator:
         )
         
         logger.info(f"Sequence comparison: variance={productivity_variance:.3f}, "
-                   f"significant={significant_difference}, best={best_strategy.value}")
+                   f"significant={significant_difference}, best={best_strategy}")
         
         return comparison
     
@@ -409,11 +408,11 @@ class MetricsCalculator:
                     advantages.append(insight)
             
             # Add meta-advantages based on sequence characteristics
-            if strategy == SequenceStrategy.THEORY_FIRST:
+            if strategy == "theory_first":
                 advantages.append("Strong theoretical foundation enables rigorous analysis")
-            elif strategy == SequenceStrategy.MARKET_FIRST:
+            elif strategy == "market_first":
                 advantages.append("Market-driven focus ensures commercial relevance")
-            elif strategy == SequenceStrategy.FUTURE_BACK:
+            elif strategy == "future_back":
                 advantages.append("Future-oriented perspective identifies emerging opportunities")
             
             sequence_advantages[strategy] = advantages
@@ -477,7 +476,7 @@ class MetricsCalculator:
         )
         
         for i, (strategy, score) in enumerate(sorted_productivity, 1):
-            report_sections.append(f"{i}. **{strategy.value}**: {score:.3f} (Quality/Agent_Calls)")
+            report_sections.append(f"{i}. **{strategy}**: {score:.3f} (Quality/Agent_Calls)")
         
         report_sections.extend([
             "",
@@ -493,7 +492,7 @@ class MetricsCalculator:
         )
         
         for i, (strategy, score) in enumerate(sorted_quality, 1):
-            report_sections.append(f"{i}. **{strategy.value}**: {score:.3f} (Research Quality)")
+            report_sections.append(f"{i}. **{strategy}**: {score:.3f} (Research Quality)")
         
         # Add unique insights analysis
         report_sections.extend([
@@ -504,7 +503,7 @@ class MetricsCalculator:
         
         for strategy, insights in comparison.unique_insights_by_sequence.items():
             report_sections.extend([
-                f"### {strategy.value} Unique Insights ({len(insights)} insights)",
+                f"### {strategy} Unique Insights ({len(insights)} insights)",
                 ""
             ])
             
@@ -546,7 +545,7 @@ class MetricsCalculator:
         if len(self.historical_baselines[strategy]) > 20:
             self.historical_baselines[strategy] = self.historical_baselines[strategy][-20:]
     
-    def get_performance_trends(self) -> Dict[SequenceStrategy, Dict[str, float]]:
+    def get_performance_trends(self) -> Dict[str, Dict[str, float]]:
         """Get performance trends for each sequence strategy."""
         trends = {}
         

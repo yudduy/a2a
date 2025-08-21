@@ -17,7 +17,6 @@ from weakref import WeakSet
 
 from pydantic import BaseModel, Field
 
-from .models import SequenceStrategy
 from .parallel_executor import StreamMessage
 
 # Import metrics components for integration
@@ -84,7 +83,7 @@ class StreamSubscription(BaseModel):
     
     subscription_id: str = Field(default_factory=lambda: str(uuid4()))
     client_id: str
-    sequence_strategies: Set[SequenceStrategy] = Field(default_factory=set)
+    sequence_strategies: Set[str] = Field(default_factory=set)
     message_types: Set[str] = Field(default_factory=set)
     delivery_guarantee: DeliveryGuarantee = DeliveryGuarantee.AT_MOST_ONCE
     
@@ -538,7 +537,7 @@ class StreamMultiplexer:
     async def create_subscription(
         self,
         client_id: str,
-        sequence_strategies: Optional[Set[SequenceStrategy]] = None,
+        sequence_strategies: Optional[Set[str]] = None,
         message_types: Optional[Set[str]] = None,
         delivery_guarantee: DeliveryGuarantee = DeliveryGuarantee.AT_MOST_ONCE,
         **kwargs
@@ -585,7 +584,7 @@ class StreamMultiplexer:
         self,
         client_id: str,
         execution_id: Optional[str] = None,
-        strategies: Optional[Set[SequenceStrategy]] = None,
+        strategies: Optional[Set[str]] = None,
         update_types: Optional[Set[str]] = None,
         min_confidence: float = 0.0,
         include_winner_detection: bool = True,
@@ -686,7 +685,7 @@ class StreamMultiplexer:
     async def broadcast_to_strategy(
         self,
         message: StreamMessage,
-        strategy: SequenceStrategy
+        strategy: str
     ) -> Dict[str, bool]:
         """Broadcast message to all subscriptions for a specific strategy."""
         message.sequence_strategy = strategy

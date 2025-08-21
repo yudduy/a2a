@@ -19,7 +19,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from .models import (
-    SequenceStrategy, 
+ 
     SequenceResult, 
     ToolProductivityMetrics, 
     AgentExecutionResult,
@@ -69,7 +69,7 @@ class SequenceMetrics:
     """Real-time metrics for a single sequence execution."""
     
     sequence_id: str
-    strategy: SequenceStrategy
+    strategy: str
     execution_id: str
     start_time: datetime
     
@@ -206,7 +206,7 @@ class ParallelMetrics:
     sequence_count: int
     
     # Comparative metrics
-    best_strategy: Optional[SequenceStrategy] = None
+    best_strategy: Optional[str] = None
     best_productivity_score: float = 0.0
     productivity_variance: float = 0.0
     significant_difference_detected: bool = False
@@ -228,7 +228,7 @@ class ParallelMetrics:
     active_sequences: int = 0
     
     # Performance rankings
-    strategy_rankings: Dict[SequenceStrategy, float] = field(default_factory=dict)
+    strategy_rankings: Dict[str, float] = field(default_factory=dict)
     
     # Timeline metrics
     first_completion_time: Optional[datetime] = None
@@ -256,12 +256,12 @@ class ParallelMetrics:
 class WinnerAnalysis(BaseModel):
     """Analysis of the winning sequence strategy."""
     
-    winning_strategy: SequenceStrategy
+    winning_strategy: str
     confidence_score: float = Field(ge=0.0, le=1.0)
     productivity_advantage: float = Field(ge=0.0)  # Percentage advantage
     
     # Comparison data
-    all_strategy_scores: Dict[SequenceStrategy, float]
+    all_strategy_scores: Dict[str, float]
     variance_threshold_exceeded: bool
     statistical_significance: float = Field(ge=0.0, le=1.0)
     
@@ -288,12 +288,12 @@ class MetricsUpdate(BaseModel):
     execution_id: str
     
     # Update data
-    sequence_metrics: Optional[Dict[SequenceStrategy, SequenceMetrics]] = None
+    sequence_metrics: Optional[Dict[str, SequenceMetrics]] = None
     parallel_metrics: Optional[ParallelMetrics] = None
     winner_analysis: Optional[WinnerAnalysis] = None
     
     # Specific update data
-    updated_strategy: Optional[SequenceStrategy] = None
+    updated_strategy: Optional[str] = None
     metric_deltas: Dict[str, float] = Field(default_factory=dict)
     
     # Context
@@ -313,7 +313,7 @@ class MetricsUpdate(BaseModel):
             },
             "parallel_metrics": self.parallel_metrics.__dict__ if self.parallel_metrics else None,
             "winner_analysis": self.winner_analysis.model_dump() if self.winner_analysis else None,
-            "updated_strategy": self.updated_strategy.value if self.updated_strategy else None,
+            "updated_strategy": self.updated_strategy if self.updated_strategy else None,
             "metric_deltas": self.metric_deltas,
             "message": self.message,
             "alert_level": self.alert_level
@@ -339,7 +339,7 @@ class ComparisonAnalyzer:
     
     def detect_winner(
         self, 
-        sequence_metrics: Dict[SequenceStrategy, SequenceMetrics],
+        sequence_metrics: Dict[str, SequenceMetrics],
         min_completion_threshold: float = 0.5
     ) -> Optional[WinnerAnalysis]:
         """Detect winner based on current metrics.
@@ -425,10 +425,10 @@ class ComparisonAnalyzer:
     
     def _calculate_confidence(
         self,
-        productivity_scores: Dict[SequenceStrategy, float],
-        sequence_metrics: Dict[SequenceStrategy, SequenceMetrics],
+        productivity_scores: Dict[str, float],
+        sequence_metrics: Dict[str, SequenceMetrics],
         variance: float,
-        best_strategy: SequenceStrategy
+        best_strategy: str
     ) -> float:
         """Calculate confidence in winner detection."""
         
@@ -464,7 +464,7 @@ class ComparisonAnalyzer:
     def _analyze_winner_strengths(
         self,
         winner_metrics: SequenceMetrics,
-        all_metrics: Dict[SequenceStrategy, SequenceMetrics]
+        all_metrics: Dict[str, SequenceMetrics]
     ) -> List[str]:
         """Analyze specific strengths of the winning strategy."""
         strengths = []
@@ -501,7 +501,7 @@ class ComparisonAnalyzer:
     def _calculate_comparative_advantages(
         self,
         winner_metrics: SequenceMetrics,
-        all_metrics: Dict[SequenceStrategy, SequenceMetrics]
+        all_metrics: Dict[str, SequenceMetrics]
     ) -> Dict[str, float]:
         """Calculate specific comparative advantages."""
         
@@ -560,7 +560,7 @@ class MetricsAggregator:
         self.winner_detection_enabled = winner_detection_enabled
         
         # Metrics storage
-        self.sequence_metrics: Dict[str, Dict[SequenceStrategy, SequenceMetrics]] = {}
+        self.sequence_metrics: Dict[str, Dict[str, SequenceMetrics]] = {}
         self.parallel_metrics: Dict[str, ParallelMetrics] = {}
         self.winner_analyses: Dict[str, WinnerAnalysis] = {}
         
@@ -615,7 +615,7 @@ class MetricsAggregator:
     def register_execution(
         self,
         execution_id: str,
-        strategies: List[SequenceStrategy],
+        strategies: List[str],
         start_time: Optional[datetime] = None
     ):
         """Register a new parallel execution for tracking."""
@@ -649,7 +649,7 @@ class MetricsAggregator:
     def collect_sequence_metrics(
         self,
         execution_id: str,
-        strategy: SequenceStrategy,
+        strategy: str,
         agent_result: Optional[AgentExecutionResult] = None,
         status_update: Optional[str] = None,
         error: Optional[str] = None
@@ -678,7 +678,7 @@ class MetricsAggregator:
         if agent_result:
             sequence_metrics.update_metrics(agent_result)
         
-        logger.debug(f"Collected metrics for {strategy.value} in execution {execution_id}")
+        logger.debug(f"Collected metrics for {strategy} in execution {execution_id}")
         return sequence_metrics
     
     def aggregate_parallel_metrics(self, execution_id: str) -> ParallelMetrics:
@@ -826,7 +826,7 @@ class MetricsAggregator:
                                     execution_id=execution_id,
                                     parallel_metrics=parallel_metrics,
                                     winner_analysis=winner_analysis,
-                                    message=f"Winner detected: {winner_analysis.winning_strategy.value}",
+                                    message=f"Winner detected: {winner_analysis.winning_strategy}",
                                     alert_level="success"
                                 )
                                 

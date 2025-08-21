@@ -138,7 +138,7 @@ def _create_comparison_synthesis(comparison) -> str:
     )
     
     for i, (strategy, score) in enumerate(sorted_rankings, 1):
-        synthesis_parts.append(f"{i}. **{strategy.value}**: {score:.3f} (Tool Productivity)")
+        synthesis_parts.append(f"{i}. **{strategy}**: {score:.3f} (Tool Productivity)")
     
     synthesis_parts.extend([
         "",
@@ -148,7 +148,7 @@ def _create_comparison_synthesis(comparison) -> str:
     
     # Add findings from each sequence
     for result in comparison.compared_sequences:
-        strategy_name = result.sequence_pattern.strategy.value
+        strategy_name = result.sequence_pattern.strategy
         synthesis_parts.extend([
             f"### {strategy_name} Sequence Results",
             f"- **Execution Time:** {result.total_duration:.1f} seconds",
@@ -171,7 +171,7 @@ def _create_comparison_synthesis(comparison) -> str:
     
     for strategy, advantages in comparison.sequence_specific_advantages.items():
         synthesis_parts.extend([
-            f"### {strategy.value}",
+            f"### {strategy}",
             ""
         ])
         for advantage in advantages:
@@ -216,7 +216,7 @@ def _extract_comparison_notes(comparison) -> List[str]:
     notes.append("Sequence-specific insights identified:")
     for strategy, insights in comparison.unique_insights_by_sequence.items():
         if insights:
-            notes.append(f"{strategy.value}: {len(insights)} unique insights")
+            notes.append(f"{strategy}: {len(insights)} unique insights")
             notes.extend(insights[:3])  # Top 3 unique insights
     
     return notes
@@ -227,7 +227,7 @@ def _extract_sequence_notes(result) -> List[str]:
     notes = []
     
     # Add sequence summary
-    strategy_name = result.sequence_pattern.strategy.value
+    strategy_name = result.sequence_pattern.strategy
     notes.append(f"Research completed using {strategy_name} sequence strategy. "
                 f"Tool Productivity: {result.overall_productivity_metrics.tool_productivity:.3f}, "
                 f"Quality Score: {result.overall_productivity_metrics.research_quality_score:.3f}")

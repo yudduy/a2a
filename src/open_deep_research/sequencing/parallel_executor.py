@@ -27,7 +27,6 @@ from pydantic import BaseModel, Field
 from .models import (
     SequenceComparison,
     SequenceResult,
-    SequenceStrategy,
     SequencePattern,
     DynamicSequencePattern,
     ToolProductivityMetrics
@@ -51,7 +50,7 @@ class ParallelExecutionProgress(BaseModel):
     """Real-time progress tracking for parallel sequence execution."""
     
     execution_id: str = Field(default_factory=lambda: str(uuid4()))
-    sequence_strategy: Optional[SequenceStrategy] = None
+    sequence_strategy: Optional[str] = None
     sequence_pattern: Optional[Union[SequencePattern, DynamicSequencePattern]] = None
     status: str = Field(default="pending")  # pending, running, completed, failed
     agent_position: int = Field(default=0)  # current agent executing
@@ -104,8 +103,8 @@ class ParallelExecutionResult(BaseModel):
     total_duration: float  # seconds
     
     # Sequence results
-    sequence_results: Dict[SequenceStrategy, SequenceResult]
-    progress_snapshots: Dict[SequenceStrategy, List[ParallelExecutionProgress]]
+    sequence_results: Dict[str, SequenceResult]
+    progress_snapshots: Dict[str, List[ParallelExecutionProgress]]
     
     # Comparative analysis
     comparison: SequenceComparison
@@ -118,11 +117,11 @@ class ParallelExecutionResult(BaseModel):
     
     # Quality metrics
     unique_insights_across_sequences: List[str]
-    insight_overlap_matrix: Dict[Tuple[SequenceStrategy, SequenceStrategy], float]
+    insight_overlap_matrix: Dict[Tuple[str, str], float]
     
     # Failure analysis
-    failed_sequences: List[SequenceStrategy] = Field(default_factory=list)
-    error_summary: Dict[SequenceStrategy, str] = Field(default_factory=dict)
+    failed_sequences: List[str] = Field(default_factory=list)
+    error_summary: Dict[str, str] = Field(default_factory=dict)
     
     @property
     def success_rate(self) -> float:
@@ -133,7 +132,7 @@ class ParallelExecutionResult(BaseModel):
         return (len(self.sequence_results) / total) * 100.0
     
     @property
-    def best_performing_strategy(self) -> Optional[SequenceStrategy]:
+    def best_performing_strategy(self) -> Optional[str]:
         """Get the best performing strategy based on tool productivity."""
         if not self.sequence_results:
             return None
@@ -154,7 +153,7 @@ class StreamMessage(BaseModel):
     """Message structure for real-time streaming."""
     
     message_id: str = Field(default_factory=lambda: str(uuid4()))
-    sequence_strategy: Optional[SequenceStrategy] = None
+    sequence_strategy: Optional[str] = None
     message_type: str  # progress, result, error, completion
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     
@@ -170,7 +169,7 @@ class StreamMessage(BaseModel):
         """Convert message to JSON for streaming."""
         return {
             "message_id": self.message_id,
-            "sequence_strategy": self.sequence_strategy.value if self.sequence_strategy else None,
+            "sequence_strategy": self.sequence_strategy if self.sequence_strategy else None,
             "message_type": self.message_type,
             "timestamp": self.timestamp.isoformat(),
             "data": self.data,
@@ -406,7 +405,7 @@ class ParallelSequenceExecutor:
     async def execute_sequences_parallel(
         self,
         research_topic: str,
-        sequences: Optional[Union[List[SequenceStrategy], List[Union[SequencePattern, DynamicSequencePattern]]]] = None,
+        sequences: Optional[Union[List[str], List[Union[SequencePattern, DynamicSequencePattern]]]] = None,
         stream_callback: Optional[Callable[[StreamMessage], None]] = None
     ) -> ParallelExecutionResult:
         """Execute multiple sequences in parallel with real-time streaming.
@@ -421,14 +420,14 @@ class ParallelSequenceExecutor:
         """
         # Handle backward compatibility and default sequences
         if sequences is None:
-            sequences = list(SequenceStrategy)
+            sequences = ["theory_first", "market_first", "future_back"]
         
         # Convert sequences to standardized format
         sequence_patterns = []
         sequence_strategies = []
         
         for seq in sequences:
-            if isinstance(seq, SequenceStrategy):
+            if isinstance(seq, str):
                 # Legacy strategy - need to create pattern from it
                 sequence_strategies.append(seq)
                 # We'll create the pattern later when we have SEQUENCE_PATTERNS or create a default
@@ -470,7 +469,7 @@ class ParallelSequenceExecutor:
                 data={
                     "execution_id": execution_id,
                     "research_topic": research_topic,
-                    "sequences": [s.value if isinstance(s, SequenceStrategy) else str(s.sequence_id) if hasattr(s, 'sequence_id') else str(i) for i, s in enumerate(sequences)],
+                    "sequences": [s if isinstance(s, str) else str(s.sequence_id) if hasattr(s, 'sequence_id') else str(i) for i, s in enumerate(sequences)],
                     "estimated_duration": len(sequences) * 300,  # 5 minutes per sequence
                     "metrics_enabled": self.enable_real_time_metrics
                 }
@@ -485,7 +484,7 @@ class ParallelSequenceExecutor:
                 total_agents = len(seq.agent_order)
                 pattern = seq
                 strategy = getattr(seq, 'strategy', None)
-            else:  # SequenceStrategy
+            else:  # String strategy
                 total_agents = 3  # Default for backward compatibility
                 pattern = None
                 strategy = seq
@@ -499,7 +498,7 @@ class ParallelSequenceExecutor:
             )
             progress_trackers[i] = progress
             # Use index for key to handle dynamic patterns without strategy
-            key = f"{execution_id}_{i}_{strategy.value if strategy else 'dynamic'}"
+            key = f"{execution_id}_{i}_{strategy if strategy else 'dynamic'}"
             self.active_executions[key] = progress
         
         try:
@@ -602,7 +601,7 @@ class ParallelSequenceExecutor:
                     data={
                         "execution_id": execution_id,
                         "success_rate": result.success_rate,
-                        "best_strategy": result.best_performing_strategy.value if result.best_performing_strategy else None,
+                        "best_strategy": result.best_performing_strategy if result.best_performing_strategy else None,
                         "total_duration": total_duration,
                         "insights_generated": len(unique_insights)
                     }
@@ -616,25 +615,25 @@ class ParallelSequenceExecutor:
         finally:
             # Clean up active executions
             for i, seq in enumerate(sequences):
-                strategy = seq if isinstance(seq, SequenceStrategy) else getattr(seq, 'strategy', None)
-                key = f"{execution_id}_{i}_{strategy.value if strategy else 'dynamic'}"
+                strategy = seq if isinstance(seq, str) else getattr(seq, 'strategy', None)
+                key = f"{execution_id}_{i}_{strategy if strategy else 'dynamic'}"
                 self.active_executions.pop(key, None)
     
-    def _get_sequence_id(self, sequence: Union[SequenceStrategy, SequencePattern, DynamicSequencePattern]) -> str:
+    def _get_sequence_id(self, sequence: Union[str, SequencePattern, DynamicSequencePattern]) -> str:
         """Get a readable ID for a sequence."""
-        if isinstance(sequence, SequenceStrategy):
+        if isinstance(sequence, str):
             return sequence.value
         elif hasattr(sequence, 'sequence_id'):
             return str(sequence.sequence_id)
         elif hasattr(sequence, 'strategy'):
-            return sequence.strategy.value
+            return sequence.strategy
         else:
             return "dynamic_sequence"
     
     async def _execute_single_sequence(
         self,
         research_topic: str,
-        sequence: Union[SequenceStrategy, SequencePattern, DynamicSequencePattern],
+        sequence: Union[str, SequencePattern, DynamicSequencePattern],
         progress_tracker: ParallelExecutionProgress,
         stream_callback: Optional[Callable[[StreamMessage], None]] = None
     ) -> Optional[SequenceResult]:
@@ -658,7 +657,7 @@ class ParallelSequenceExecutor:
                     progress_tracker.cpu_usage_percent = cpu
                     
                     # Determine the strategy for the stream message
-                    strategy = sequence if isinstance(sequence, SequenceStrategy) else getattr(sequence, 'strategy', None)
+                    strategy = sequence if isinstance(sequence, str) else getattr(sequence, 'strategy', None)
                     
                     # Send progress update
                     if stream_callback:
@@ -669,7 +668,7 @@ class ParallelSequenceExecutor:
                             data={
                                 "status": "sequence_started",
                                 "sequence_id": sequence_id,
-                                "strategy": strategy.value if strategy else "dynamic",
+                                "strategy": strategy if strategy else "dynamic",
                                 "retry_attempt": retry_count
                             }
                         )
@@ -685,7 +684,7 @@ class ParallelSequenceExecutor:
                     # Get the pattern to execute
                     if isinstance(sequence, (SequencePattern, DynamicSequencePattern)):
                         pattern = sequence
-                    else:  # SequenceStrategy - need to handle this case
+                    else:  # String strategy - need to handle this case
                         # Try to create a pattern from strategy or use a fallback
                         try:
                             # Check if we have SEQUENCE_PATTERNS available
@@ -694,11 +693,11 @@ class ParallelSequenceExecutor:
                         except (ImportError, KeyError, AttributeError):
                             # Fallback: create a basic pattern from the strategy
                             from .models import AgentType
-                            if sequence == SequenceStrategy.THEORY_FIRST:
+                            if sequence == "theory_first":
                                 agent_order = [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS]
-                            elif sequence == SequenceStrategy.MARKET_FIRST:
+                            elif sequence == "market_first":
                                 agent_order = [AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS]
-                            elif sequence == SequenceStrategy.FUTURE_BACK:
+                            elif sequence == "future_back":
                                 agent_order = [AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY]
                             else:
                                 agent_order = [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS]
@@ -822,7 +821,7 @@ class ParallelSequenceExecutor:
         except Exception as e:
             strategy = getattr(pattern, 'strategy', None)
             pattern_id = getattr(pattern, 'sequence_id', 'unknown')
-            logger.error(f"Error in sequence execution for {strategy.value if strategy else pattern_id}: {e}")
+            logger.error(f"Error in sequence execution for {strategy if strategy else pattern_id}: {e}")
             raise
     
     async def _safe_stream_callback(
@@ -841,8 +840,8 @@ class ParallelSequenceExecutor:
     
     def _calculate_insight_overlap(
         self, 
-        sequence_results: Dict[SequenceStrategy, SequenceResult]
-    ) -> Dict[Tuple[SequenceStrategy, SequenceStrategy], float]:
+        sequence_results: Dict[str, SequenceResult]
+    ) -> Dict[Tuple[str, str], float]:
         """Calculate insight overlap between sequences."""
         overlap_matrix = {}
         strategies = list(sequence_results.keys())
@@ -866,7 +865,7 @@ class ParallelSequenceExecutor:
     
     def _extract_unique_insights(
         self, 
-        sequence_results: Dict[SequenceStrategy, SequenceResult]
+        sequence_results: Dict[str, SequenceResult]
     ) -> List[str]:
         """Extract unique insights across all sequences."""
         all_insights = set()

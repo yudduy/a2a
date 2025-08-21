@@ -8,7 +8,7 @@ productivity outcomes in research tasks.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from langchain_core.runnables import RunnableConfig
 
@@ -22,7 +22,6 @@ from open_deep_research.sequencing.models import (
     SequenceComparison,
     SequencePattern,
     SequenceResult,
-    SequenceStrategy,
     DynamicSequencePattern,
     SEQUENCE_PATTERNS,
     ToolProductivityMetrics
@@ -71,7 +70,7 @@ class SequenceOptimizationEngine:
         self.metrics_aggregator = metrics_aggregator
         self.enable_real_time_metrics = enable_real_time_metrics
         self._current_execution_id: Optional[str] = None
-        self._current_strategy: Optional[SequenceStrategy] = None
+        self._current_strategy: Optional[str] = None
         
         # Dynamic agent creation - agents are created on demand
         self._agent_cache: Dict[AgentType, Any] = {}
@@ -125,7 +124,7 @@ class SequenceOptimizationEngine:
             agent_order = sequence_pattern.agent_order
             strategy = None  # Dynamic patterns don't have strategy enum
         else:
-            pattern_description = sequence_pattern.strategy.value
+            pattern_description = sequence_pattern.strategy
             agent_order = sequence_pattern.agent_order
             strategy = sequence_pattern.strategy
         
@@ -195,7 +194,7 @@ class SequenceOptimizationEngine:
                         
                         # Calculate real-time productivity
                         await self.metrics_calculator.calculate_real_time_productivity(
-                            sequence_id=f"{execution_id}_{strategy.value if strategy else 'dynamic'}",
+                            sequence_id=f"{execution_id}_{strategy if strategy else 'dynamic'}",
                             agent_results=agent_results,
                             insight_transitions=insight_transitions,
                             partial=position < len(agent_order)
@@ -286,13 +285,13 @@ class SequenceOptimizationEngine:
                     
                     # Final real-time productivity calculation
                     await self.metrics_calculator.calculate_real_time_productivity(
-                        sequence_id=f"{execution_id}_{strategy.value if strategy else 'dynamic'}",
+                        sequence_id=f"{execution_id}_{strategy if strategy else 'dynamic'}",
                         agent_results=agent_results,
                         insight_transitions=insight_transitions,
                         partial=False
                     )
                     
-                    logger.info(f"Final metrics collected for sequence {strategy.value if strategy else pattern_description}")
+                    logger.info(f"Final metrics collected for sequence {strategy if strategy else pattern_description}")
                     
                 except Exception as e:
                     logger.warning(f"Error collecting final metrics: {e}")
@@ -363,8 +362,8 @@ class SequenceOptimizationEngine:
             strategy_description = f"Dynamic Pattern (ID: {sequence_pattern.sequence_id})"
             strategy_value = sequence_pattern.description
         else:
-            strategy_description = f"Sequence Strategy: {sequence_pattern.strategy.value}"
-            strategy_value = sequence_pattern.strategy.value
+            strategy_description = f"Sequence Strategy: {sequence_pattern.strategy}"
+            strategy_value = sequence_pattern.strategy
         
         synthesis_parts = [
             f"# Comprehensive Research Synthesis: {research_topic}",
@@ -592,7 +591,7 @@ class SequenceOptimizationEngine:
         """
         return analysis.explanation
     
-    def get_all_sequence_explanations(self, analysis: SequenceAnalysis) -> Dict[SequenceStrategy, str]:
+    def get_all_sequence_explanations(self, analysis: SequenceAnalysis) -> Dict[str, str]:
         """Get explanations for all sequence strategies.
         
         Args:
@@ -622,7 +621,7 @@ class SequenceOptimizationEngine:
                        f"for query: '{research_topic}'")
         else:
             # Fallback to a default pattern if the recommendation isn't found
-            recommended_pattern = SEQUENCE_PATTERNS[SequenceStrategy.THEORY_FIRST]
+            recommended_pattern = SEQUENCE_PATTERNS["theory_first"]
             logger.warning(f"Using fallback sequence pattern for query: '{research_topic}'")
         
         # Execute the recommended sequence
@@ -752,7 +751,7 @@ class SequenceOptimizationEngine:
     async def compare_sequences(
         self, 
         research_topic: str, 
-        strategies: Optional[List[SequenceStrategy]] = None
+        strategies: Optional[List[str]] = None
     ) -> SequenceComparison:
         """Execute and compare multiple sequence strategies for the same research topic.
         
@@ -764,7 +763,7 @@ class SequenceOptimizationEngine:
             SequenceComparison with detailed comparative analysis
         """
         if strategies is None:
-            strategies = list(SequenceStrategy)
+            strategies = ["theory_first", "market_first", "future_back"]
         
         logger.info(f"Starting sequence comparison for '{research_topic}' with {len(strategies)} strategies")
         
@@ -794,7 +793,7 @@ class SequenceOptimizationEngine:
     async def batch_sequence_analysis(
         self, 
         research_topics: List[str],
-        strategies: Optional[List[SequenceStrategy]] = None
+        strategies: Optional[List[str]] = None
     ) -> List[SequenceComparison]:
         """Run sequence comparison across multiple research topics.
         

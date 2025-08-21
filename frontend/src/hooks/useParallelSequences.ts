@@ -1,11 +1,12 @@
 /**
  * Production-ready React hook for managing 3 concurrent research sequences.
  * 
- * This hook provides real-time state management, WebSocket connection handling,
+ * This hook provides real-time state management using LangGraph SDK streaming,
  * message routing, and performance optimization for parallel sequence execution.
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Client } from '@langchain/langgraph-sdk';
 import {
   SequenceState,
   SequenceStrategy,
@@ -15,14 +16,9 @@ import {
   ConnectionState,
   RoutedMessage,
   SequenceProgress,
-  AgentTransition,
   SequenceMetrics,
   ErrorMessage,
-  WebSocketEventHandlers,
-  WebSocketClientConfig,
 } from '@/types/parallel';
-import { OptimizedParallelWebSocketClient } from '@/utils/optimizedWebSocketClient';
-import { ParallelWebSocketClient } from '@/utils/websocketClient';
 
 /**
  * Configuration for the parallel sequences hook
@@ -30,10 +26,7 @@ import { ParallelWebSocketClient } from '@/utils/websocketClient';
 interface UseParallelSequencesConfig {
   apiUrl?: string;
   assistantId?: string;
-  enableAutoReconnect?: boolean;
   enableMetrics?: boolean;
-  bufferSize?: number;
-  maxReconnectAttempts?: number;
 }
 
 /**
@@ -41,11 +34,8 @@ interface UseParallelSequencesConfig {
  */
 const DEFAULT_CONFIG: Required<UseParallelSequencesConfig> = {
   apiUrl: import.meta.env.DEV ? 'http://localhost:2024' : 'http://localhost:8123',
-  assistantId: 'parallel_deep_researcher',
-  enableAutoReconnect: true,
+  assistantId: 'Deep Researcher', // Use the exact registered graph name
   enableMetrics: true,
-  bufferSize: 1000,
-  maxReconnectAttempts: 5,
 };
 
 /**
@@ -95,7 +85,7 @@ export function useParallelSequences(
   const [subscriptionStatus, setSubscriptionStatus] = useState<Record<string, 'active' | 'pending' | 'failed'>>({});
 
   // Metrics and progress
-  const [metrics, setMetrics] = useState<RealTimeMetrics>({
+  const [metrics] = useState<RealTimeMetrics>({
     messages_per_second: 0,
     average_latency: 0,
     connection_health: 0,
@@ -106,10 +96,9 @@ export function useParallelSequences(
   });
 
   // Refs for stable references
-  const clientRef = useRef<OptimizedParallelWebSocketClient | null>(null);
-  const fallbackClientRef = useRef<ParallelWebSocketClient | null>(null);
-  const sequenceIdsRef = useRef<string[]>([]);
-  const isInitializedRef = useRef(false);
+  const clientRef = useRef<Client | null>(null);
+  const activeStreamsRef = useRef<Map<string, AbortController>>(new Map());
+  const sequenceThreadsRef = useRef<Map<string, string>>(new Map());
 
   /**
    * Calculated progress state
@@ -145,203 +134,81 @@ export function useParallelSequences(
   }, [sequences, isLoading]);
 
   /**
-   * WebSocket event handlers
+   * Initialize LangGraph client
    */
-  const eventHandlers: WebSocketEventHandlers = useMemo(() => ({
-    onMessage: (message: RoutedMessage) => {
-      handleIncomingMessage(message);
-    },
-    onConnectionStateChange: (state: ConnectionState) => {
-      setConnectionState(state);
-    },
-    onError: (errorMessage: ErrorMessage) => {
-      handleError(errorMessage);
-    },
-    onMetricsUpdate: (newMetrics: RealTimeMetrics) => {
-      setMetrics(newMetrics);
-    },
-    onAgentTransition: (transition: AgentTransition) => {
-      handleAgentTransition(transition);
-    },
-  }), []);
-
-  /**
-   * Initialize WebSocket client
-   */
-  const initializeClient = useCallback(async () => {
-    if (clientRef.current || isInitializedRef.current) {
-      return;
-    }
-
-    try {
-      const clientConfig: WebSocketClientConfig = {
+  const initializeClient = useCallback(() => {
+    if (!clientRef.current) {
+      clientRef.current = new Client({
         apiUrl: finalConfig.apiUrl,
-        assistantId: finalConfig.assistantId,
-        maxConnections: 3,
-        reconnectAttempts: finalConfig.maxReconnectAttempts,
-        reconnectDelay: 1000,
-        heartbeatInterval: 30000,
-        messageTimeout: 10000,
-        bufferSize: finalConfig.bufferSize,
-        compressionEnabled: true,
-        enableMetrics: finalConfig.enableMetrics,
-      };
-
-      // Try optimized client first, fallback to regular client
-      let client: OptimizedParallelWebSocketClient | ParallelWebSocketClient;
-      try {
-        client = new OptimizedParallelWebSocketClient(clientConfig, eventHandlers);
-        await client.start();
-        clientRef.current = client;
-      } catch (optimizedError) {
-        console.warn('Optimized WebSocket client failed, falling back to regular client:', optimizedError);
-        client = new ParallelWebSocketClient(clientConfig, eventHandlers);
-        await client.start();
-        fallbackClientRef.current = client;
-      }
-      
-      isInitializedRef.current = true;
-      setConnectionState(ConnectionState.CONNECTED);
-      
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to initialize WebSocket client');
-      setError(error);
-      setConnectionState(ConnectionState.FAILED);
-      throw error;
-    }
-  }, [finalConfig, eventHandlers]);
-
-  /**
-   * Start parallel research sequences
-   */
-  const start = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      throw new Error('Research query is required');
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Initialize client if needed
-      await initializeClient();
-
-      const activeClient = clientRef.current || fallbackClientRef.current;
-      if (!activeClient) {
-        throw new Error('WebSocket client not initialized');
-      }
-
-      // Initialize sequence states
-      const initialSequences = [
-        createInitialSequenceState(SequenceStrategy.THEORY_FIRST),
-        createInitialSequenceState(SequenceStrategy.MARKET_FIRST),
-        createInitialSequenceState(SequenceStrategy.FUTURE_BACK),
-      ];
-
-      setSequences(initialSequences);
-
-      // Start parallel sequences
-      const sequenceIds = await activeClient.startParallelSequences(query);
-      sequenceIdsRef.current = sequenceIds;
-
-      // Update sequence states with actual IDs
-      setSequences(prev => prev.map((seq, index) => ({
-        ...seq,
-        sequence_id: sequenceIds[index] || seq.sequence_id,
-        progress: {
-          ...seq.progress,
-          sequence_id: sequenceIds[index] || seq.sequence_id,
-          status: 'active',
-        },
-      })));
-
-      // Update subscription status
-      const initialSubscriptionStatus: Record<string, 'active' | 'pending' | 'failed'> = {};
-      sequenceIds.forEach(id => {
-        initialSubscriptionStatus[id] = 'active';
       });
-      setSubscriptionStatus(initialSubscriptionStatus);
-
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to start parallel sequences');
-      setError(error);
-      setIsLoading(false);
-      throw error;
+      setConnectionState(ConnectionState.CONNECTED);
     }
-  }, [initializeClient]);
+    return clientRef.current;
+  }, [finalConfig.apiUrl]);
 
   /**
-   * Stop all sequences
+   * Start a sequence stream for a specific strategy
    */
-  const stop = useCallback(() => {
-    setIsLoading(false);
+  const startSequenceStream = useCallback(async (
+    query: string, 
+    strategy: SequenceStrategy, 
+    index: number
+  ): Promise<string> => {
+    const client = initializeClient();
     
-    if (clientRef.current) {
-      clientRef.current.stop().catch(console.error);
-      clientRef.current = null;
+    // Create thread for this sequence
+    const thread = await client.threads.create();
+    const sequenceId = `seq_${strategy}_${Date.now()}_${index}`;
+    
+    sequenceThreadsRef.current.set(sequenceId, thread.thread_id);
+    
+    // Create abort controller for this stream
+    const abortController = new AbortController();
+    activeStreamsRef.current.set(sequenceId, abortController);
+    
+    // Initialize sequence state
+    const initialSequence = createInitialSequenceState(strategy);
+    initialSequence.sequence_id = sequenceId;
+    
+    setSequences(prev => [...prev, initialSequence]);
+    
+    // Start streaming directly to the graph
+    try {
+      console.log(`Starting stream for sequence ${sequenceId} with strategy ${strategy}`);
+      
+      const stream = client.runs.stream(
+        thread.thread_id,
+        finalConfig.assistantId, // This should be the graph_id 'deep_researcher'
+        {
+          input: { 
+            messages: [{ role: "human", content: query }],
+            // Add sequence-specific metadata if needed
+            config: {
+              sequence_strategy: strategy,
+              sequence_id: sequenceId
+            }
+          },
+          signal: abortController.signal,
+        }
+      );
+
+      // Process stream in background
+      processSequenceStream(stream, sequenceId, strategy, index);
+      
+    } catch (error) {
+      console.error(`Failed to start stream for sequence ${sequenceId}:`, error);
+      handleError({
+        error_id: `stream_start_${sequenceId}`,
+        error_type: 'connection',
+        message: `Failed to start sequence stream: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        sequence_id: sequenceId,
+        recoverable: true,
+        timestamp: Date.now(),
+      });
     }
-    if (fallbackClientRef.current) {
-      fallbackClientRef.current.stop().catch(console.error);
-      fallbackClientRef.current = null;
-    }
-
-    isInitializedRef.current = false;
-    sequenceIdsRef.current = [];
-    setConnectionState(ConnectionState.DISCONNECTED);
-    setSubscriptionStatus({});
-  }, []);
-
-  /**
-   * Restart sequences with same query
-   */
-  const restart = useCallback(() => {
-    const lastQuery = progress.research_query;
-    stop();
-    if (lastQuery) {
-      setTimeout(() => start(lastQuery), 1000);
-    }
-  }, [progress.research_query, stop, start]);
-
-  /**
-   * Pause specific sequence
-   */
-  const pauseSequence = useCallback((sequenceId: string) => {
-    setSequences(prev => prev.map(seq => 
-      seq.sequence_id === sequenceId 
-        ? { ...seq, progress: { ...seq.progress, status: 'pending' } }
-        : seq
-    ));
-  }, []);
-
-  /**
-   * Resume specific sequence
-   */
-  const resumeSequence = useCallback((sequenceId: string) => {
-    setSequences(prev => prev.map(seq => 
-      seq.sequence_id === sequenceId 
-        ? { ...seq, progress: { ...seq.progress, status: 'active' } }
-        : seq
-    ));
-  }, []);
-
-  /**
-   * Get messages for specific sequence
-   */
-  const getSequenceMessages = useCallback((sequenceId: string): RoutedMessage[] => {
-    const activeClient = clientRef.current || fallbackClientRef.current;
-    if (!activeClient) {
-      return [];
-    }
-    return activeClient.getSequenceMessages(sequenceId);
-  }, []);
-
-  /**
-   * Get progress for specific sequence
-   */
-  const getSequenceProgress = useCallback((sequenceId: string): SequenceProgress | null => {
-    const sequence = sequences.find(s => s.sequence_id === sequenceId);
-    return sequence?.progress || null;
-  }, [sequences]);
+    
+    return sequenceId;
+  }, [finalConfig.assistantId, initializeClient]);
 
   /**
    * Handle incoming WebSocket message
@@ -411,7 +278,7 @@ export function useParallelSequences(
    * Handle WebSocket errors
    */
   const handleError = useCallback((errorMessage: ErrorMessage) => {
-    console.error('WebSocket error:', errorMessage);
+    console.error('Streaming error:', errorMessage);
     
     // Add error to relevant sequence
     if (errorMessage.sequence_id) {
@@ -435,54 +302,173 @@ export function useParallelSequences(
   }, []);
 
   /**
-   * Handle agent transitions
+   * Process stream events for a sequence
    */
-  const handleAgentTransition = useCallback((transition: AgentTransition) => {
-    // Find the sequence this transition belongs to
-    setSequences(prev => prev.map(seq => {
-      // Simple matching - in production, you'd have more sophisticated routing
-      const shouldUpdate = seq.current_agent === transition.from_agent || 
-                          seq.progress.status === 'active';
-      
-      if (shouldUpdate) {
-        return {
-          ...seq,
-          agent_transitions: [...seq.agent_transitions, transition],
-          current_agent: transition.to_agent,
+  const processSequenceStream = useCallback(async (
+    stream: any,
+    sequenceId: string,
+    strategy: SequenceStrategy,
+    index: number
+  ) => {
+    try {
+      for await (const chunk of stream) {
+        // Convert LangGraph chunk to our message format
+        const routedMessage: RoutedMessage = {
+          message_id: `msg_${sequenceId}_${Date.now()}`,
+          sequence_id: sequenceId,
+          sequence_strategy: strategy,
+          message_type: 'progress',
+          timestamp: Date.now(),
+          content: chunk.data || chunk,
+          sequence_index: index,
+          routing_timestamp: Date.now(),
         };
+
+        // Add message type detection based on chunk content
+        if (chunk.event === 'messages') {
+          routedMessage.message_type = 'result';
+        } else if (chunk.event === 'error') {
+          routedMessage.message_type = 'error';
+        } else if (chunk.event === 'end') {
+          routedMessage.message_type = 'completion';
+        }
+
+        handleIncomingMessage(routedMessage);
       }
-      return seq;
-    }));
+    } catch (error) {
+      if ((error as any)?.name !== 'AbortError') {
+        console.error(`Stream processing error for sequence ${sequenceId}:`, error);
+        handleError({
+          error_id: `stream_error_${sequenceId}`,
+          error_type: 'processing',
+          message: `Stream processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          sequence_id: sequenceId,
+          recoverable: false,
+          timestamp: Date.now(),
+        });
+      }
+    }
+  }, [handleIncomingMessage, handleError]);
+
+  /**
+   * Start parallel research sequences
+   */
+  const start = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      throw new Error('Research query is required');
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      setSequences([]);
+      
+      // Clear any existing streams
+      activeStreamsRef.current.forEach(controller => controller.abort());
+      activeStreamsRef.current.clear();
+      sequenceThreadsRef.current.clear();
+
+      // Start all three sequences in parallel
+      const strategies = [
+        SequenceStrategy.THEORY_FIRST,
+        SequenceStrategy.MARKET_FIRST,
+        SequenceStrategy.FUTURE_BACK,
+      ];
+
+      const sequencePromises = strategies.map((strategy, index) => 
+        startSequenceStream(query, strategy, index)
+      );
+
+      const sequenceIds = await Promise.all(sequencePromises);
+
+      // Update subscription status
+      const initialSubscriptionStatus: Record<string, 'active' | 'pending' | 'failed'> = {};
+      sequenceIds.forEach(id => {
+        initialSubscriptionStatus[id] = 'active';
+      });
+      setSubscriptionStatus(initialSubscriptionStatus);
+
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to start parallel sequences');
+      setError(error);
+      setIsLoading(false);
+      throw error;
+    }
+  }, [startSequenceStream]);
+
+  /**
+   * Stop all sequences
+   */
+  const stop = useCallback(() => {
+    setIsLoading(false);
+    
+    // Abort all active streams
+    activeStreamsRef.current.forEach(controller => controller.abort());
+    activeStreamsRef.current.clear();
+    sequenceThreadsRef.current.clear();
+    
+    setConnectionState(ConnectionState.DISCONNECTED);
+    setSubscriptionStatus({});
   }, []);
+
+  /**
+   * Restart sequences with same query
+   */
+  const restart = useCallback(() => {
+    const lastQuery = progress.research_query;
+    stop();
+    if (lastQuery) {
+      setTimeout(() => start(lastQuery), 1000);
+    }
+  }, [progress.research_query, stop, start]);
+
+  /**
+   * Pause specific sequence
+   */
+  const pauseSequence = useCallback((sequenceId: string) => {
+    setSequences(prev => prev.map(seq => 
+      seq.sequence_id === sequenceId 
+        ? { ...seq, progress: { ...seq.progress, status: 'pending' } }
+        : seq
+    ));
+  }, []);
+
+  /**
+   * Resume specific sequence
+   */
+  const resumeSequence = useCallback((sequenceId: string) => {
+    setSequences(prev => prev.map(seq => 
+      seq.sequence_id === sequenceId 
+        ? { ...seq, progress: { ...seq.progress, status: 'active' } }
+        : seq
+    ));
+  }, []);
+
+  /**
+   * Get messages for specific sequence
+   */
+  const getSequenceMessages = useCallback((sequenceId: string): RoutedMessage[] => {
+    const sequence = sequences.find(s => s.sequence_id === sequenceId);
+    return sequence?.messages || [];
+  }, [sequences]);
+
+  /**
+   * Get progress for specific sequence
+   */
+  const getSequenceProgress = useCallback((sequenceId: string): SequenceProgress | null => {
+    const sequence = sequences.find(s => s.sequence_id === sequenceId);
+    return sequence?.progress || null;
+  }, [sequences]);
+
 
   /**
    * Cleanup on unmount
    */
   useEffect(() => {
     return () => {
-      if (clientRef.current) {
-        clientRef.current.stop().catch(console.error);
-      }
-      if (fallbackClientRef.current) {
-        fallbackClientRef.current.stop().catch(console.error);
-      }
+      stop();
     };
-  }, []);
-
-  /**
-   * Auto-reconnection logic
-   */
-  useEffect(() => {
-    if (finalConfig.enableAutoReconnect && 
-        connectionState === ConnectionState.FAILED && 
-        isLoading) {
-      const reconnectTimer = setTimeout(() => {
-        initializeClient().catch(console.error);
-      }, 5000);
-
-      return () => clearTimeout(reconnectTimer);
-    }
-  }, [connectionState, isLoading, finalConfig.enableAutoReconnect, initializeClient]);
+  }, [stop]);
 
   /**
    * Mark loading as false when all sequences complete or fail

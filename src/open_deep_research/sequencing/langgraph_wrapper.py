@@ -20,7 +20,6 @@ from pydantic import BaseModel, Field
 from open_deep_research.configuration import Configuration
 from open_deep_research.sequencing import (
     SequenceOptimizationEngine,
-    SequenceStrategy,
     SEQUENCE_PATTERNS,
     ToolProductivityMetrics
 )
@@ -113,14 +112,14 @@ async def emit_delegation_event(
 async def execute_sequence_pattern(
     state: DelegationState, 
     config: RunnableConfig, 
-    strategy: SequenceStrategy
+    strategy: str
 ) -> Command[Literal["finalize_sequence"]]:
     """Execute a specific sequence pattern with real-time event emission."""
     
-    logger.info(f"Starting sequence execution: {strategy.value}")
+    logger.info(f"Starting sequence execution: {strategy}")
     
     # Initialize sequence state
-    state["sequence_strategy"] = strategy.value
+    state["sequence_strategy"] = strategy
     state["sequence_position"] = 0
     
     # Emit sequence start event
@@ -128,7 +127,7 @@ async def execute_sequence_pattern(
         state,
         event_type="sequence_started",
         data={
-            "strategy": strategy.value,
+            "strategy": strategy,
             "research_topic": state.get("research_brief", "Unknown"),
             "agent_order": [agent.value for agent in SEQUENCE_PATTERNS[strategy].agent_order]
         }
@@ -407,7 +406,7 @@ def create_theory_first_graph():
     builder = StateGraph(DelegationState, config_schema=Configuration)
     
     async def execute_theory_first(state: DelegationState, config: RunnableConfig):
-        return await execute_sequence_pattern(state, config, SequenceStrategy.THEORY_FIRST)
+        return await execute_sequence_pattern(state, config, "theory_first")
     
     builder.add_node("execute_theory_first", execute_theory_first)
     builder.add_node("finalize_sequence", finalize_sequence)
@@ -424,7 +423,7 @@ def create_market_first_graph():
     builder = StateGraph(DelegationState, config_schema=Configuration)
     
     async def execute_market_first(state: DelegationState, config: RunnableConfig):
-        return await execute_sequence_pattern(state, config, SequenceStrategy.MARKET_FIRST)
+        return await execute_sequence_pattern(state, config, "market_first")
     
     builder.add_node("execute_market_first", execute_market_first)
     builder.add_node("finalize_sequence", finalize_sequence)
@@ -441,7 +440,7 @@ def create_future_back_graph():
     builder = StateGraph(DelegationState, config_schema=Configuration)
     
     async def execute_future_back(state: DelegationState, config: RunnableConfig):
-        return await execute_sequence_pattern(state, config, SequenceStrategy.FUTURE_BACK)
+        return await execute_sequence_pattern(state, config, "future_back")
     
     builder.add_node("execute_future_back", execute_future_back)
     builder.add_node("finalize_sequence", finalize_sequence)
@@ -511,7 +510,7 @@ async def execute_comparison(state: DelegationState, config: RunnableConfig):
 """
         
         for i, (strategy, score) in enumerate(comparison_result.productivity_rankings.items(), 1):
-            comparison_summary += f"{i}. **{strategy.value.replace('_', ' ').title()}**: {score:.3f} Tool Productivity\n"
+            comparison_summary += f"{i}. **{strategy.replace('_', ' ').title()}**: {score:.3f} Tool Productivity\n"
         
         state["notes"] = [comparison_summary]
         state["comparison_result"] = comparison_result
@@ -585,7 +584,7 @@ async def stream_callback_factory(
             # Convert to delegation event for state tracking
             delegation_event = DelegationEvent(
                 event_type=f"parallel_{message.message_type}",
-                sequence_strategy=message.sequence_strategy.value if message.sequence_strategy else "all",
+                sequence_strategy=message.sequence_strategy if message.sequence_strategy else "all",
                 step_number=state.get("message_count", 0),
                 data=message.data,
                 timestamp=message.timestamp,
@@ -599,7 +598,7 @@ async def stream_callback_factory(
             
             # Update execution progress
             if message.sequence_strategy:
-                strategy_key = message.sequence_strategy.value
+                strategy_key = message.sequence_strategy
                 progress_data = {
                     "last_message_type": message.message_type,
                     "last_update": message.timestamp.isoformat(),
@@ -662,7 +661,7 @@ async def execute_parallel_sequences(state: ParallelDelegationState, config: Run
         # Create stream subscription for this execution
         subscription_id = await multiplexer.create_subscription(
             client_id=execution_id,
-            sequence_strategies=set(SequenceStrategy),  # All strategies
+            sequence_strategies={"theory_first", "market_first", "future_back"},  # All strategies
             message_types={"progress", "result", "error", "completion"},
             delivery_guarantee=DeliveryGuarantee.AT_LEAST_ONCE,
             include_progress=True,
@@ -700,7 +699,7 @@ async def execute_parallel_sequences(state: ParallelDelegationState, config: Run
             # Execute parallel sequences
             parallel_result = await executor.execute_sequences_parallel(
                 research_topic=research_topic,
-                strategies=list(SequenceStrategy),
+                strategies=["theory_first", "market_first", "future_back"],
                 stream_callback=stream_callback
             )
             
@@ -713,7 +712,7 @@ async def execute_parallel_sequences(state: ParallelDelegationState, config: Run
                 "research_topic": research_topic,
                 "total_duration": parallel_result.total_duration,
                 "success_rate": parallel_result.success_rate,
-                "best_performing_strategy": parallel_result.best_performing_strategy.value if parallel_result.best_performing_strategy else None,
+                "best_performing_strategy": parallel_result.best_performing_strategy if parallel_result.best_performing_strategy else None,
                 "total_insights": len(parallel_result.unique_insights_across_sequences),
                 "total_api_calls": parallel_result.total_api_calls,
                 "peak_memory_usage": parallel_result.peak_memory_usage,
@@ -723,7 +722,7 @@ async def execute_parallel_sequences(state: ParallelDelegationState, config: Run
             # Add productivity rankings if comparison available
             if parallel_result.comparison:
                 comparison_summary["productivity_rankings"] = {
-                    strategy.value: score 
+                    strategy: score 
                     for strategy, score in parallel_result.comparison.productivity_rankings.items()
                 }
                 comparison_summary["productivity_variance"] = parallel_result.comparison.productivity_variance

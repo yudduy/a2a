@@ -19,9 +19,6 @@ import {
   findToolMessageForCall,
 } from '@/types/messages';
 import { ToolCall } from '@/types/tools';
-import { SequenceState, SequenceStrategy } from '@/types/parallel';
-import { StreamingChat } from '@/components/StreamingChat';
-import SimpleMetricsComparison from '@/components/SimpleMetricsComparison';
 // Removed unused AgentId import
 
 // Group messages to combine AI responses with their tool calls and results
@@ -441,8 +438,6 @@ interface ChatMessagesViewProps {
   liveActivityEvents: ProcessedEvent[];
   historicalActivities: Record<string, ProcessedEvent[]>;
   onReset?: () => void;
-  isParallelResearch?: boolean;
-  sequences?: SequenceState[];
 }
 
 // Utility function to extract current query from messages
@@ -455,64 +450,7 @@ const getCurrentQuery = (messages: Message[]): string => {
     : 'Research Query';
 };
 
-// Helper function to detect when all sequences are complete
-const areAllSequencesComplete = (sequences: SequenceState[]): boolean => {
-  return sequences.length === 3 && 
-    sequences.every(seq => 
-      seq.progress.status === 'completed' || seq.progress.status === 'failed'
-    );
-};
 
-// ParallelColumn component for each research strategy
-interface ParallelColumnProps {
-  title: string;
-  subtitle: string;
-  color: 'blue' | 'green' | 'purple';
-  sequence?: SequenceState;
-}
-
-const ParallelColumn: React.FC<ParallelColumnProps> = ({ 
-  title, 
-  subtitle, 
-  color, 
-  sequence 
-}) => {
-  const colorClasses = {
-    blue: 'border-blue-500/30 bg-blue-500/5',
-    green: 'border-green-500/30 bg-green-500/5', 
-    purple: 'border-purple-500/30 bg-purple-500/5'
-  };
-
-  return (
-    <div className={cn(
-      'flex flex-col border rounded-lg h-full',
-      colorClasses[color]
-    )}>
-      {/* Column header */}
-      <div className="p-4 border-b border-neutral-700 flex-shrink-0">
-        <h3 className="font-semibold text-neutral-100">{title}</h3>
-        <p className="text-xs text-neutral-400">{subtitle}</p>
-      </div>
-      
-      {/* Column content - streaming chat */}
-      <div className="flex-1 overflow-hidden min-h-0">
-        {sequence ? (
-          <StreamingChat 
-            sequence={sequence}
-            strategy={sequence.strategy}
-            isActive={sequence.progress.status === 'active'}
-            isLoading={false}
-            className="h-full border-0 bg-transparent"
-          />
-        ) : (
-          <div className="p-4 text-center text-neutral-500 h-full flex items-center justify-center">
-            <div className="animate-pulse text-sm">Setting up research sequence...</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 
 export function ChatMessagesView({
   messages,
@@ -523,8 +461,6 @@ export function ChatMessagesView({
   liveActivityEvents,
   historicalActivities,
   onReset,
-  isParallelResearch = false,
-  sequences = [],
 }: ChatMessagesViewProps) {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
@@ -562,44 +498,7 @@ export function ChatMessagesView({
 
       {/* Main content area */}
       <div className="flex-1 overflow-hidden min-h-0">
-        {isParallelResearch && sequences.length > 0 ? (
-          // Parallel research view with metrics
-          <div className="flex flex-col h-full">
-            {/* 3-column research layout */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-6 overflow-hidden min-h-0">
-              <ParallelColumn 
-                title="Theory First" 
-                subtitle="Academic → Industry → Technical"
-                color="blue"
-                sequence={sequences.find(s => s.strategy === SequenceStrategy.THEORY_FIRST)}
-              />
-              <ParallelColumn 
-                title="Market First" 
-                subtitle="Industry → Academic → Technical"
-                color="green"
-                sequence={sequences.find(s => s.strategy === SequenceStrategy.MARKET_FIRST)}
-              />
-              <ParallelColumn 
-                title="Future Back" 
-                subtitle="Technical → Academic → Industry"
-                color="purple"
-                sequence={sequences.find(s => s.strategy === SequenceStrategy.FUTURE_BACK)}
-              />
-            </div>
-            
-            {/* Metrics section when complete */}
-            {areAllSequencesComplete(sequences) && (
-              <div className="border-t border-neutral-700 bg-neutral-800/50 flex-shrink-0">
-                <SimpleMetricsComparison 
-                  sequences={sequences}
-                  onNewQuery={onReset || (() => {})}
-                  className="p-6"
-                />
-              </div>
-            )}
-          </div>
-        ) : (
-          // Regular single chat view
+        {/* Sequential chat view */}
           <ScrollArea className="flex-1 min-h-0" ref={scrollAreaRef}>
             <div className="p-4 md:p-6 space-y-2 max-w-4xl mx-auto pt-16 pb-4">
               {messageGroups.map((group, index) => {
@@ -670,7 +569,6 @@ export function ChatMessagesView({
                 )}
             </div>
           </ScrollArea>
-        )}
       </div>
 
       {/* Input form at bottom */}

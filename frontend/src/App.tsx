@@ -71,10 +71,11 @@ export default function App() {
       // Start main chat stream
       const stream = client.runs.stream(
         threadId,
-        'deep_researcher',
+        'Deep Researcher', // Use the exact registered graph name
         {
-          input: { messages: query },
-          configurable: { thread_id: threadId },
+          input: { 
+            messages: [{ role: "human", content: query }]
+          },
         }
       );
       
@@ -85,7 +86,10 @@ export default function App() {
           const newMessages = Array.isArray(chunk.data) ? chunk.data : [chunk.data];
           setMessages(prev => {
             const existing = new Set(prev.map(m => m.id));
-            const filtered = newMessages.filter((m: Message) => m.id && !existing.has(m.id));
+            const filtered = newMessages.filter((m: any) => 
+              m.id && !existing.has(m.id) && 
+              (m.type === 'human' || m.type === 'ai' || m.type === 'tool')
+            );
             return [...prev, ...filtered];
           });
         }
@@ -161,8 +165,6 @@ export default function App() {
             liveActivityEvents={liveActivityEvents}
             historicalActivities={historicalActivities}
             onReset={handleReset}
-            isParallelResearch={true}
-            sequences={sequences}
           />
         )}
       </main>

@@ -27,7 +27,6 @@ from open_deep_research.sequencing.models import (
     QueryType,
     ResearchDomain,
     ScopeBreadth,
-    SequenceStrategy,
     DynamicSequencePattern,
     AgentType,
     SEQUENCE_PATTERNS
@@ -45,8 +44,8 @@ class SequenceAnalysisResult:
         research_domain: ResearchDomain,
         complexity_score: float,
         scope_breadth: ScopeBreadth,
-        recommended_sequences: List[Tuple[SequenceStrategy, float]],
-        primary_recommendation: SequenceStrategy,
+        recommended_sequences: List[Tuple[str, float]],
+        primary_recommendation: str,
         confidence: float,
         explanation: str,
         reasoning: Dict[str, str],
@@ -218,7 +217,7 @@ class SequenceAnalyzer:
             query_characteristics=characteristics
         )
         
-        logger.info(f"Analysis complete: {primary_recommendation.value} (confidence: {primary_confidence:.2f})")
+        logger.info(f"Analysis complete: {primary_recommendation} (confidence: {primary_confidence:.2f})")
         return analysis
     
     def _detect_research_domain(self, query_lower: str) -> Dict[str, float]:
@@ -384,64 +383,64 @@ class SequenceAnalyzer:
         primary_domain: str, 
         complexity_score: float,
         characteristics: Dict[str, any]
-    ) -> List[Tuple[SequenceStrategy, float]]:
+    ) -> List[Tuple[str, float]]:
         """Recommend sequence strategies with confidence scores."""
         
         # Base recommendations by query type and domain
         recommendations = {}
         
         if query_type == "academic_research":
-            recommendations[SequenceStrategy.THEORY_FIRST] = 0.85
-            recommendations[SequenceStrategy.MARKET_FIRST] = 0.45
-            recommendations[SequenceStrategy.FUTURE_BACK] = 0.35
+            recommendations["theory_first"] = 0.85
+            recommendations["market_first"] = 0.45
+            recommendations["future_back"] = 0.35
             
         elif query_type == "market_analysis":
-            recommendations[SequenceStrategy.MARKET_FIRST] = 0.85
-            recommendations[SequenceStrategy.THEORY_FIRST] = 0.55
-            recommendations[SequenceStrategy.FUTURE_BACK] = 0.40
+            recommendations["market_first"] = 0.85
+            recommendations["theory_first"] = 0.55
+            recommendations["future_back"] = 0.40
             
         elif query_type == "technical_feasibility":
-            recommendations[SequenceStrategy.THEORY_FIRST] = 0.70
-            recommendations[SequenceStrategy.FUTURE_BACK] = 0.65
-            recommendations[SequenceStrategy.MARKET_FIRST] = 0.50
+            recommendations["theory_first"] = 0.70
+            recommendations["future_back"] = 0.65
+            recommendations["market_first"] = 0.50
             
         elif query_type == "innovation_exploration":
-            recommendations[SequenceStrategy.FUTURE_BACK] = 0.80
-            recommendations[SequenceStrategy.THEORY_FIRST] = 0.60
-            recommendations[SequenceStrategy.MARKET_FIRST] = 0.55
+            recommendations["future_back"] = 0.80
+            recommendations["theory_first"] = 0.60
+            recommendations["market_first"] = 0.55
             
         elif query_type == "trend_analysis":
-            recommendations[SequenceStrategy.FUTURE_BACK] = 0.85
-            recommendations[SequenceStrategy.MARKET_FIRST] = 0.60
-            recommendations[SequenceStrategy.THEORY_FIRST] = 0.45
+            recommendations["future_back"] = 0.85
+            recommendations["market_first"] = 0.60
+            recommendations["theory_first"] = 0.45
             
         elif query_type == "competitive_intelligence":
-            recommendations[SequenceStrategy.MARKET_FIRST] = 0.80
-            recommendations[SequenceStrategy.FUTURE_BACK] = 0.60
-            recommendations[SequenceStrategy.THEORY_FIRST] = 0.40
+            recommendations["market_first"] = 0.80
+            recommendations["future_back"] = 0.60
+            recommendations["theory_first"] = 0.40
             
         else:  # hybrid_multi_domain
-            recommendations[SequenceStrategy.THEORY_FIRST] = 0.70
-            recommendations[SequenceStrategy.MARKET_FIRST] = 0.70
-            recommendations[SequenceStrategy.FUTURE_BACK] = 0.65
+            recommendations["theory_first"] = 0.70
+            recommendations["market_first"] = 0.70
+            recommendations["future_back"] = 0.65
         
         # Adjust based on complexity
         if complexity_score > 0.7:
             # High complexity benefits from theoretical foundation
-            recommendations[SequenceStrategy.THEORY_FIRST] += 0.10
+            recommendations["theory_first"] += 0.10
         elif complexity_score < 0.4:
             # Low complexity can start with practical approaches
-            recommendations[SequenceStrategy.MARKET_FIRST] += 0.10
+            recommendations["market_first"] += 0.10
         
         # Adjust based on characteristics
         if characteristics.get("innovation_focused", False):
-            recommendations[SequenceStrategy.FUTURE_BACK] += 0.10
+            recommendations["future_back"] += 0.10
             
         if characteristics.get("business_focused", False):
-            recommendations[SequenceStrategy.MARKET_FIRST] += 0.10
+            recommendations["market_first"] += 0.10
             
         if characteristics.get("research_focused", False):
-            recommendations[SequenceStrategy.THEORY_FIRST] += 0.10
+            recommendations["theory_first"] += 0.10
         
         # Normalize and sort
         max_score = max(recommendations.values())
@@ -456,21 +455,21 @@ class SequenceAnalyzer:
         research_topic: str, 
         query_type: str, 
         primary_domain: str,
-        recommended_strategy: SequenceStrategy, 
+        recommended_strategy: str, 
         complexity_score: float,
         characteristics: Dict[str, any]
     ) -> str:
         """Generate human-readable explanation for sequence selection."""
         
         strategy_descriptions = {
-            SequenceStrategy.THEORY_FIRST: "Theory First approach (Academic → Industry → Technical)",
-            SequenceStrategy.MARKET_FIRST: "Market First approach (Industry → Academic → Technical)",
-            SequenceStrategy.FUTURE_BACK: "Future Back approach (Technical → Academic → Industry)"
+            "theory_first": "Theory First approach (Academic → Industry → Technical)",
+            "market_first": "Market First approach (Industry → Academic → Technical)",
+            "future_back": "Future Back approach (Technical → Academic → Industry)"
         }
         
         # Strategy-specific rationales
         strategy_rationales = {
-            SequenceStrategy.THEORY_FIRST: {
+            "theory_first": {
                 "strengths": [
                     "establishes strong theoretical foundation",
                     "ensures evidence-based analysis",
@@ -479,7 +478,7 @@ class SequenceAnalyzer:
                 ],
                 "best_for": "research requiring solid academic grounding and theoretical understanding"
             },
-            SequenceStrategy.MARKET_FIRST: {
+            "market_first": {
                 "strengths": [
                     "prioritizes commercial viability and market opportunities",
                     "focuses on practical business applications",
@@ -488,7 +487,7 @@ class SequenceAnalyzer:
                 ],
                 "best_for": "business-oriented research and commercial opportunity assessment"
             },
-            SequenceStrategy.FUTURE_BACK: {
+            "future_back": {
                 "strengths": [
                     "starts with cutting-edge technical trends and innovations",
                     "identifies emerging opportunities before they become mainstream",
@@ -516,7 +515,7 @@ class SequenceAnalyzer:
         # Strategy rationale
         rationale = strategy_rationales[recommended_strategy]
         explanation_parts.append(
-            f"The {recommended_strategy.value.replace('_', ' ')} sequence is optimal because it {rationale['strengths'][0]} "
+            f"The {recommended_strategy.replace('_', ' ')} sequence is optimal because it {rationale['strengths'][0]} "
             f"and {rationale['strengths'][1]}. This approach is particularly effective for {rationale['best_for']}."
         )
         
@@ -557,7 +556,7 @@ class SequenceAnalyzer:
         self, 
         query_type: str, 
         primary_domain: str,
-        recommended_strategy: SequenceStrategy, 
+        recommended_strategy: str, 
         complexity_score: float,
         characteristics: Dict[str, any]
     ) -> Dict[str, str]:
@@ -567,7 +566,7 @@ class SequenceAnalyzer:
             "query_classification": f"Classified as {query_type} based on keyword analysis and domain indicators",
             "domain_analysis": f"Primary domain identified as {primary_domain} with supporting evidence from query content",
             "complexity_assessment": f"Complexity score of {complexity_score:.2f} based on scope indicators and query structure",
-            "sequence_selection": f"Selected {recommended_strategy.value} based on domain focus and research objectives"
+            "sequence_selection": f"Selected {recommended_strategy} based on domain focus and research objectives"
         }
         
         # Add characteristic-specific reasoning
@@ -582,7 +581,7 @@ class SequenceAnalyzer:
         
         return reasoning
     
-    def explain_all_sequences(self, analysis: SequenceAnalysisResult) -> Dict[SequenceStrategy, str]:
+    def explain_all_sequences(self, analysis: SequenceAnalysisResult) -> Dict[str, str]:
         """Generate explanations for why each sequence strategy could be valuable.
         
         Args:
@@ -597,21 +596,21 @@ class SequenceAnalyzer:
         strategy_confidences = {strategy: confidence for strategy, confidence in analysis.recommended_sequences}
         
         base_explanations = {
-            SequenceStrategy.THEORY_FIRST: (
+            "theory_first": (
                 "The Theory First approach would establish a strong academic foundation by starting with "
                 "scholarly research and theoretical frameworks. This sequence is valuable when solid "
                 "evidence-based understanding is crucial before exploring practical applications. "
                 "It ensures that market analysis and technical implementation are grounded in "
                 "rigorous academic knowledge."
             ),
-            SequenceStrategy.MARKET_FIRST: (
+            "market_first": (
                 "The Market First approach would prioritize commercial viability and business opportunities "
                 "by beginning with industry analysis. This sequence is valuable when understanding "
                 "market demand, competitive landscape, and business models is essential. "
                 "It ensures that academic research and technical development are guided by "
                 "real-world market needs and commercial potential."
             ),
-            SequenceStrategy.FUTURE_BACK: (
+            "future_back": (
                 "The Future Back approach would start with emerging technical trends and innovations "
                 "to identify cutting-edge opportunities. This sequence is valuable when exploring "
                 "forward-looking possibilities and technological disruptions. "
@@ -629,13 +628,13 @@ class SequenceAnalyzer:
                 explanation = f"[Alternative - {confidence:.1%} confidence] {base_explanation}"
             
             # Add specific reasoning based on query characteristics
-            if strategy == SequenceStrategy.THEORY_FIRST and analysis.query_characteristics.get("research_focused", False):
+            if strategy == "theory_first" and analysis.query_characteristics.get("research_focused", False):
                 explanation += " This aligns particularly well with the academic focus of your query."
                 
-            elif strategy == SequenceStrategy.MARKET_FIRST and analysis.query_characteristics.get("business_focused", False):
+            elif strategy == "market_first" and analysis.query_characteristics.get("business_focused", False):
                 explanation += " This matches the business orientation evident in your research question."
                 
-            elif strategy == SequenceStrategy.FUTURE_BACK and analysis.query_characteristics.get("innovation_focused", False):
+            elif strategy == "future_back" and analysis.query_characteristics.get("innovation_focused", False):
                 explanation += " This complements the innovation and future-trends focus of your query."
             
             explanations[strategy] = explanation
@@ -702,9 +701,9 @@ class SequenceAnalyzer:
         
         # Map primary recommendation to agent order
         strategy_to_agents = {
-            SequenceStrategy.THEORY_FIRST: [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS],
-            SequenceStrategy.MARKET_FIRST: [AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS],
-            SequenceStrategy.FUTURE_BACK: [AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY]
+            "theory_first": [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS],
+            "market_first": [AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS],
+            "future_back": [AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY]
         }
         
         agent_order = strategy_to_agents[analysis.primary_recommendation]
@@ -758,9 +757,9 @@ class SequenceAnalyzer:
         
         # Strategy to agent mappings
         strategy_to_agents = {
-            SequenceStrategy.THEORY_FIRST: [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS],
-            SequenceStrategy.MARKET_FIRST: [AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS],
-            SequenceStrategy.FUTURE_BACK: [AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY]
+            "theory_first": [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS],
+            "market_first": [AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS],
+            "future_back": [AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY]
         }
         
         # Generate sequences for alternative strategies
@@ -787,7 +786,7 @@ class SequenceAnalyzer:
             
             sequence = DynamicSequencePattern(
                 agent_order=agent_order,
-                description=f"Alternative dynamic sequence emphasizing {strategy.value.replace('_', ' ')} approach",
+                description=f"Alternative dynamic sequence emphasizing {strategy.replace('_', ' ')} approach",
                 reasoning=reasoning,
                 confidence_score=confidence,
                 expected_advantages=advantages,
@@ -883,7 +882,7 @@ class SequenceAnalyzer:
     
     def _generate_dynamic_reasoning(
         self,
-        strategy: SequenceStrategy,
+        strategy: str,
         query_type: str,
         research_domain: str,
         complexity_score: float,
@@ -893,17 +892,17 @@ class SequenceAnalyzer:
         """Generate detailed reasoning for dynamic sequence selection."""
         
         strategy_rationales = {
-            SequenceStrategy.THEORY_FIRST: {
+            "theory_first": {
                 "core": "establishes rigorous academic foundation before practical applications",
                 "strength": "evidence-based analysis grounded in scholarly research",
                 "benefit": "ensures theoretical validity guides market and technical exploration"
             },
-            SequenceStrategy.MARKET_FIRST: {
+            "market_first": {
                 "core": "prioritizes commercial viability and real-world market dynamics",
                 "strength": "practical business focus with immediate applicability",
                 "benefit": "grounds theoretical research in proven market needs and opportunities"
             },
-            SequenceStrategy.FUTURE_BACK: {
+            "future_back": {
                 "core": "starts with emerging trends and cutting-edge technical developments",
                 "strength": "forward-looking perspective identifying future opportunities",
                 "benefit": "connects innovation potential with academic validation and market reality"
@@ -963,26 +962,26 @@ class SequenceAnalyzer:
     
     def _extract_sequence_advantages(
         self,
-        strategy: SequenceStrategy,
+        strategy: str,
         characteristics: Dict[str, any],
         complexity_score: float
     ) -> List[str]:
         """Extract specific advantages for a sequence strategy."""
         
         base_advantages = {
-            SequenceStrategy.THEORY_FIRST: [
+            "theory_first": [
                 "Strong academic foundation guides research direction",
                 "Evidence-based analysis ensures scientific rigor",
                 "Theoretical insights inform practical applications",
                 "Systematic knowledge building from first principles"
             ],
-            SequenceStrategy.MARKET_FIRST: [
+            "market_first": [
                 "Commercial viability assessed early in process",
                 "Market demand drives research prioritization",
                 "Real-world constraints inform theoretical exploration",
                 "Business opportunities identified upfront"
             ],
-            SequenceStrategy.FUTURE_BACK: [
+            "future_back": [
                 "Cutting-edge trends identified before mainstream adoption",
                 "Innovation opportunities explored systematically",
                 "Future-oriented perspective guides current research",
@@ -1002,13 +1001,13 @@ class SequenceAnalyzer:
         if complexity_score > 0.7:
             advantages.append("Structured approach handles complex multi-faceted research")
         
-        if characteristics.get("innovation_focused", False) and strategy == SequenceStrategy.FUTURE_BACK:
+        if characteristics.get("innovation_focused", False) and strategy == "future_back":
             advantages.append("Innovation focus perfectly aligned with technical-first approach")
         
-        if characteristics.get("business_focused", False) and strategy == SequenceStrategy.MARKET_FIRST:
+        if characteristics.get("business_focused", False) and strategy == "market_first":
             advantages.append("Business orientation maximizes commercial insight generation")
         
-        if characteristics.get("research_focused", False) and strategy == SequenceStrategy.THEORY_FIRST:
+        if characteristics.get("research_focused", False) and strategy == "theory_first":
             advantages.append("Academic focus leverages theoretical depth and scholarly rigor")
         
         return advantages

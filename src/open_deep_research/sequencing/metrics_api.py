@@ -15,7 +15,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depe
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .models import SequenceStrategy, MetricsUpdateType
+from .models import MetricsUpdateType
 from .metrics_aggregator import MetricsAggregator, MetricsAggregatorContext
 from .stream_multiplexer import StreamMultiplexer, create_stream_multiplexer
 from .parallel_executor import ParallelSequenceExecutor, parallel_executor_context
@@ -385,7 +385,7 @@ class MetricsAPI:
             strategies = None
             if request.strategies:
                 strategies = {
-                    SequenceStrategy(strategy) for strategy in request.strategies
+                    strategy for strategy in request.strategies
                 }
             
             # Convert update types
@@ -465,7 +465,7 @@ class MetricsAPI:
                 "sequence_count": parallel_metrics.sequence_count,
                 "status": "active" if parallel_metrics.active_sequences > 0 else "completed",
                 "completion_rate": parallel_metrics.completion_rate,
-                "best_strategy": parallel_metrics.best_strategy.value if parallel_metrics.best_strategy else None,
+                "best_strategy": parallel_metrics.best_strategy if parallel_metrics.best_strategy else None,
                 "significant_difference": parallel_metrics.significant_difference_detected
             }
             

@@ -13,13 +13,6 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
-class SequenceStrategy(Enum):
-    """Strategic sequence patterns for specialized agent ordering."""
-    
-    THEORY_FIRST = "theory_first"      # Academic → Industry → Technical
-    MARKET_FIRST = "market_first"      # Industry → Academic → Technical  
-    FUTURE_BACK = "future_back"        # Technical → Academic → Industry
-
 
 class AgentType(Enum):
     """Types of specialized research agents."""
@@ -81,8 +74,8 @@ class SequenceAnalysis(BaseModel):
     scope_breadth: ScopeBreadth
     
     # Sequence recommendations with confidence scores
-    recommended_sequences: List[Tuple[SequenceStrategy, float]] = Field(default_factory=list)
-    primary_recommendation: SequenceStrategy
+    recommended_sequences: List[Tuple[str, float]] = Field(default_factory=list)
+    primary_recommendation: str
     confidence: float = Field(ge=0.0, le=1.0)
     
     # Analysis results
@@ -104,6 +97,7 @@ class SequencePattern(BaseModel):
     expected_advantages: List[str] = Field(default_factory=list)
     confidence_score: float = Field(ge=0.0, le=1.0, default=1.0)
     reasoning: str = Field(default="")
+    strategy: Optional[str] = None  # For backward compatibility
 
 
 class InsightTransition(BaseModel):
@@ -241,18 +235,18 @@ class SequenceComparison(BaseModel):
     significant_difference_detected: bool = False  # True if >20% variance found
     
     # Best Performing Sequence
-    highest_productivity_sequence: SequenceStrategy
+    highest_productivity_sequence: str
     productivity_advantage: float = Field(ge=0.0)  # Percentage advantage
     
     # Detailed Comparisons
-    productivity_rankings: Dict[SequenceStrategy, float]
-    quality_rankings: Dict[SequenceStrategy, float]
-    efficiency_rankings: Dict[SequenceStrategy, float]
+    productivity_rankings: Dict[str, float]
+    quality_rankings: Dict[str, float]
+    efficiency_rankings: Dict[str, float]
     
     # Insight Analysis
-    unique_insights_by_sequence: Dict[SequenceStrategy, List[str]]
+    unique_insights_by_sequence: Dict[str, List[str]]
     shared_insights_across_sequences: List[str]
-    sequence_specific_advantages: Dict[SequenceStrategy, List[str]]
+    sequence_specific_advantages: Dict[str, List[str]]
     
     # Statistical Validation
     statistical_significance: float = Field(ge=0.0, le=1.0)
@@ -265,7 +259,7 @@ class AdaptiveLearningState(BaseModel):
     """State for tracking and adapting sequence optimization over time."""
     
     # Historical Performance
-    sequence_performance_history: Dict[SequenceStrategy, List[float]] = Field(default_factory=dict)
+    sequence_performance_history: Dict[str, List[float]] = Field(default_factory=dict)
     insight_transition_patterns: Dict[str, List[InsightTransition]] = Field(default_factory=dict)
     
     # Learning Parameters
@@ -273,7 +267,7 @@ class AdaptiveLearningState(BaseModel):
     adaptation_learning_rate: float = Field(default=0.1, ge=0.0, le=1.0)
     
     # Optimization State
-    optimal_sequence_for_topic_types: Dict[str, SequenceStrategy] = Field(default_factory=dict)
+    optimal_sequence_for_topic_types: Dict[str, str] = Field(default_factory=dict)
     transition_success_rates: Dict[str, float] = Field(default_factory=dict)
     
     # Performance Tracking
@@ -293,6 +287,7 @@ class DynamicSequencePattern(BaseModel):
     confidence_score: float = Field(ge=0.0, le=1.0)
     expected_advantages: List[str] = Field(default_factory=list)
     topic_alignment_score: float = Field(ge=0.0, le=1.0, default=0.0)
+    strategy: Optional[str] = None  # Optional strategy association
     
     @property
     def sequence_length(self) -> int:
@@ -337,7 +332,7 @@ class SequenceMetrics(BaseModel):
     """Real-time metrics for a single sequence execution."""
     
     sequence_id: str
-    strategy: SequenceStrategy
+    strategy: str
     execution_id: str
     start_time: datetime
     
@@ -412,7 +407,7 @@ class ParallelMetrics(BaseModel):
     sequence_count: int
     
     # Comparative metrics
-    best_strategy: Optional[SequenceStrategy] = None
+    best_strategy: Optional[str] = None
     best_productivity_score: float = 0.0
     productivity_variance: float = 0.0
     significant_difference_detected: bool = False
@@ -434,7 +429,7 @@ class ParallelMetrics(BaseModel):
     active_sequences: int = 0
     
     # Performance rankings
-    strategy_rankings: Dict[SequenceStrategy, float] = Field(default_factory=dict)
+    strategy_rankings: Dict[str, float] = Field(default_factory=dict)
     
     # Timeline metrics
     first_completion_time: Optional[datetime] = None
@@ -462,12 +457,12 @@ class ParallelMetrics(BaseModel):
 class WinnerAnalysis(BaseModel):
     """Analysis of the winning sequence strategy."""
     
-    winning_strategy: SequenceStrategy
+    winning_strategy: str
     confidence_score: float = Field(ge=0.0, le=1.0)
     productivity_advantage: float = Field(ge=0.0)  # Percentage advantage
     
     # Comparison data
-    all_strategy_scores: Dict[SequenceStrategy, float]
+    all_strategy_scores: Dict[str, float]
     variance_threshold_exceeded: bool
     statistical_significance: float = Field(ge=0.0, le=1.0)
     
@@ -494,12 +489,12 @@ class MetricsUpdate(BaseModel):
     execution_id: str
     
     # Update data
-    sequence_metrics: Optional[Dict[SequenceStrategy, SequenceMetrics]] = None
+    sequence_metrics: Optional[Dict[str, SequenceMetrics]] = None
     parallel_metrics: Optional[ParallelMetrics] = None
     winner_analysis: Optional[WinnerAnalysis] = None
     
     # Specific update data
-    updated_strategy: Optional[SequenceStrategy] = None
+    updated_strategy: Optional[str] = None
     metric_deltas: Dict[str, float] = Field(default_factory=dict)
     
     # Context
@@ -514,13 +509,63 @@ class MetricsUpdate(BaseModel):
             "timestamp": self.timestamp.isoformat(),
             "execution_id": self.execution_id,
             "sequence_metrics": {
-                str(k.value): v.model_dump() if hasattr(v, 'model_dump') else v.__dict__
+                str(k): v.model_dump() if hasattr(v, 'model_dump') else v.__dict__
                 for k, v in (self.sequence_metrics or {}).items()
             },
             "parallel_metrics": self.parallel_metrics.model_dump() if self.parallel_metrics else None,
             "winner_analysis": self.winner_analysis.model_dump() if self.winner_analysis else None,
-            "updated_strategy": self.updated_strategy.value if self.updated_strategy else None,
+            "updated_strategy": self.updated_strategy if self.updated_strategy else None,
             "metric_deltas": self.metric_deltas,
             "message": self.message,
             "alert_level": self.alert_level
         }
+
+
+# Standard sequence patterns for backward compatibility
+THEORY_FIRST_PATTERN = SequencePattern(
+    agent_order=[AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS],
+    description="Theory First: Academic → Industry → Technical (strong theoretical foundation)",
+    expected_advantages=[
+        "Strong theoretical foundation",
+        "Academic rigor applied to market analysis",
+        "Technical implementation builds on solid theory"
+    ],
+    confidence_score=1.0,
+    reasoning="Academic insights provide theoretical foundation, then industry validates market relevance, finally technical trends assess implementation feasibility"
+)
+
+MARKET_FIRST_PATTERN = SequencePattern(
+    agent_order=[AgentType.INDUSTRY, AgentType.ACADEMIC, AgentType.TECHNICAL_TRENDS],
+    description="Market First: Industry → Academic → Technical (market-driven approach)",
+    expected_advantages=[
+        "Market-driven insights",
+        "Industry needs guide academic research",
+        "Technical implementation focuses on market requirements"
+    ],
+    confidence_score=1.0,
+    reasoning="Industry insights identify market opportunities, academic research validates approaches, technical trends assess implementation paths"
+)
+
+FUTURE_BACK_PATTERN = SequencePattern(
+    agent_order=[AgentType.TECHNICAL_TRENDS, AgentType.ACADEMIC, AgentType.INDUSTRY],
+    description="Future Back: Technical → Academic → Industry (future-oriented perspective)",
+    expected_advantages=[
+        "Future-oriented perspective",
+        "Technical trends drive academic research direction",
+        "Industry analysis focuses on emerging opportunities"
+    ],
+    confidence_score=1.0,
+    reasoning="Technical trends identify future directions, academic research provides theoretical backing, industry analysis evaluates market readiness"
+)
+
+# Add strategy attribute to patterns for compatibility
+THEORY_FIRST_PATTERN.strategy = "theory_first"
+MARKET_FIRST_PATTERN.strategy = "market_first"
+FUTURE_BACK_PATTERN.strategy = "future_back"
+
+# Mapping of strategies to patterns
+SEQUENCE_PATTERNS = {
+    "theory_first": THEORY_FIRST_PATTERN,
+    "market_first": MARKET_FIRST_PATTERN,
+    "future_back": FUTURE_BACK_PATTERN
+}
