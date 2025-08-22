@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 export interface ProcessedEvent {
   title: string;
   data: string | string[] | Record<string, unknown>;
+  timestamp?: number; // Optional timestamp for duplicate detection and performance
 }
 
 interface ActivityTimelineProps {
@@ -38,15 +39,24 @@ export function ActivityTimeline({
     if (index === 0 && isLoading && processedEvents.length === 0) {
       return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
     }
-    if (title.toLowerCase().includes('generating')) {
+    
+    // Check if title already contains emoji, if so, don't add icon
+    const hasEmoji = /[\u{1F600}-\u{1F6FF}\u{1F300}-\u{1F5FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(title);
+    if (hasEmoji) {
+      return null; // No icon needed, emoji is in title
+    }
+    
+    // Legacy icon mapping for titles without emojis
+    const lowerTitle = title.toLowerCase();
+    if (lowerTitle.includes('generating') || lowerTitle.includes('writing')) {
       return <TextSearch className="h-4 w-4 text-neutral-400" />;
-    } else if (title.toLowerCase().includes('thinking')) {
+    } else if (lowerTitle.includes('thinking') || lowerTitle.includes('processing')) {
       return <Loader2 className="h-4 w-4 text-neutral-400 animate-spin" />;
-    } else if (title.toLowerCase().includes('reflection')) {
+    } else if (lowerTitle.includes('reflection') || lowerTitle.includes('analyzing')) {
       return <Brain className="h-4 w-4 text-neutral-400" />;
-    } else if (title.toLowerCase().includes('research')) {
+    } else if (lowerTitle.includes('research') || lowerTitle.includes('search')) {
       return <Search className="h-4 w-4 text-neutral-400" />;
-    } else if (title.toLowerCase().includes('finalizing')) {
+    } else if (lowerTitle.includes('finalizing') || lowerTitle.includes('completing')) {
       return <Pen className="h-4 w-4 text-neutral-400" />;
     }
     return <Activity className="h-4 w-4 text-neutral-400" />;
@@ -100,7 +110,7 @@ export function ActivityTimeline({
                       <div className="absolute left-3 top-3.5 h-full w-0.5 bg-neutral-600" />
                     ) : null}
                     <div className="absolute left-0.5 top-2 h-6 w-6 rounded-full bg-neutral-600 flex items-center justify-center ring-4 ring-neutral-700">
-                      {getEventIcon(eventItem.title, index)}
+                      {getEventIcon(eventItem.title, index) || <Activity className="h-4 w-4 text-neutral-400" />}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm text-neutral-200 font-medium mb-0.5 truncate">

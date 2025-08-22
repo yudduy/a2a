@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-react';
-import { ToolCall, ToolMessage } from '@/types/tools';
+import { ToolCall, ToolMessage, ToolCallUtils, ToolExecutionStatus } from '@/types/tools';
 import { cn } from '@/lib/utils';
 
 interface ToolMessageDisplayProps {
@@ -64,7 +64,7 @@ const JsonDisplay = ({ data, title }: { data: unknown; title: string }) => (
     </h4>
     <div className="bg-neutral-900/50 rounded-lg p-3 border border-neutral-700/50 overflow-x-auto">
       <pre className="text-xs overflow-x-auto text-neutral-200 font-mono leading-relaxed whitespace-pre-wrap break-words min-w-0">
-        <code>{JSON.stringify(data, null, 2)}</code>
+        <code>{ToolCallUtils.formatArgsForDisplay(data as Record<string, unknown>)}</code>
       </pre>
     </div>
   </div>
@@ -125,26 +125,23 @@ export function ToolMessageDisplay({
                 <div className="space-y-2 mt-4">
                   <h4 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
                     Output
+                    {toolMessage.error_type && (
+                      <span className="ml-2 text-red-400 text-xs">
+                        ({toolMessage.error_type})
+                      </span>
+                    )}
                   </h4>
                   <div
                     className={cn(
                       'rounded-lg p-3 text-sm border overflow-x-auto',
-                      toolMessage.is_error
+                      ToolCallUtils.isErrorMessage(toolMessage)
                         ? 'bg-red-900/10 border-red-500/20 text-red-200'
                         : 'bg-neutral-900/50 border-neutral-700/50 text-neutral-200'
                     )}
                   >
-                    {typeof toolMessage.content === 'string' ? (
-                      <pre className="whitespace-pre-wrap overflow-x-auto font-mono text-xs leading-relaxed break-words min-w-0">
-                        {toolMessage.content}
-                      </pre>
-                    ) : (
-                      <pre className="overflow-x-auto font-mono text-xs leading-relaxed min-w-0">
-                        <code className="whitespace-pre-wrap break-words">
-                          {JSON.stringify(toolMessage.content, null, 2)}
-                        </code>
-                      </pre>
-                    )}
+                    <pre className="whitespace-pre-wrap overflow-x-auto font-mono text-xs leading-relaxed break-words min-w-0">
+                      {ToolCallUtils.formatResultForDisplay(toolMessage.content)}
+                    </pre>
                   </div>
                 </div>
               )}

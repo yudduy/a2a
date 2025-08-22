@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Copy, CopyCheck } from 'lucide-react';
 import { InputForm } from '@/components/InputForm';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -331,8 +331,8 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
     isLiveActivityForThisBubble ||
     (activityForThisBubble && activityForThisBubble.length > 0);
 
-  // Always hide tool messages for clean UI
-  const shouldHideToolMessages = true;
+  // Show tool messages to provide visibility into backend tool interactions
+  const shouldHideToolMessages = false;
 
   // Check if we should hide copy button (when still loading for this message group)
   const shouldHideCopyButton = isLastGroup && isOverallLoading;
@@ -465,7 +465,7 @@ export function ChatMessagesView({
   };
 
   // Auto-scroll functionality
-  const scrollToBottom = (smooth = true) => {
+  const scrollToBottom = useCallback((smooth = true) => {
     if (!scrollAreaRef.current) return;
     
     // Get the viewport element from the ScrollArea
@@ -476,9 +476,9 @@ export function ChatMessagesView({
       top: viewport.scrollHeight,
       behavior: smooth ? 'smooth' : 'auto',
     });
-  };
+  }, []);
 
-  const isNearBottom = (): boolean => {
+  const isNearBottom = useCallback((): boolean => {
     if (!scrollAreaRef.current) return true;
     
     // Get the viewport element from the ScrollArea
@@ -490,12 +490,11 @@ export function ChatMessagesView({
     
     // Consider "near bottom" if within 100px
     return distanceFromBottom <= 100;
-  };
+  }, []);
 
   // Auto-scroll when messages change or loading state changes
   useEffect(() => {
     const hasNewMessages = messages.length > prevMessageCountRef.current;
-    const loadingStateChanged = isLoading !== prevIsLoadingRef.current;
     
     // Auto-scroll if:
     // 1. New messages were added and user is near bottom, OR
@@ -508,7 +507,7 @@ export function ChatMessagesView({
     // Update refs for next comparison
     prevMessageCountRef.current = messages.length;
     prevIsLoadingRef.current = isLoading;
-  }, [messages.length, isLoading]);
+  }, [messages.length, isLoading, isNearBottom, scrollToBottom]);
 
   // Group messages to combine related AI responses and tool calls
   const messageGroups = groupMessages(messages);
