@@ -72,9 +72,12 @@ export function ActivityTimeline({
     <Card className="border-none rounded-lg bg-neutral-700 max-h-96 w-full min-w-0">
       <CardHeader>
         <CardDescription className="flex items-center justify-between min-w-0">
-          <div
-            className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-neutral-100 min-w-0 truncate"
+          <button
+            type="button"
+            className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-neutral-100 min-w-0 truncate bg-transparent border-none p-0 hover:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2 focus:ring-offset-neutral-700 rounded"
             onClick={() => setIsTimelineCollapsed(!isTimelineCollapsed)}
+            aria-expanded={!isTimelineCollapsed}
+            aria-controls="timeline-content"
           >
             Research
             {isTimelineCollapsed ? (
@@ -82,11 +85,11 @@ export function ActivityTimeline({
             ) : (
               <ChevronUp className="h-4 w-4 mr-2 flex-shrink-0" />
             )}
-          </div>
+          </button>
         </CardDescription>
       </CardHeader>
       {!isTimelineCollapsed && (
-        <ScrollArea className="max-h-96 overflow-y-auto">
+        <ScrollArea className="max-h-96 overflow-y-auto" id="timeline-content">
           <CardContent>
             {isLoading && processedEvents.length === 0 && (
               <div className="relative pl-8 pb-4 min-w-0">

@@ -414,11 +414,13 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0 self-start mt-2 hover:bg-neutral-600/50 text-neutral-400 hover:text-neutral-200"
-          onClick={() =>
-            handleCopy(combinedTextContent, group.primaryMessage.id!)
-          }
+          onClick={() => {
+            if (group.primaryMessage.id) {
+              handleCopy(combinedTextContent, group.primaryMessage.id);
+            }
+          }}
         >
-          {copiedMessageId === group.primaryMessage.id ? (
+          {group.primaryMessage.id && copiedMessageId === group.primaryMessage.id ? (
             <CopyCheck className="h-3 w-3" />
           ) : (
             <Copy className="h-3 w-3" />

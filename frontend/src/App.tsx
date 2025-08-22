@@ -183,7 +183,7 @@ export default function App() {
     stop: streamStop,
   } = useStream({
     assistantId: 'Deep Researcher',
-    apiUrl: import.meta.env.DEV ? 'http://localhost:2024' : 'http://localhost:8123',
+    apiUrl: import.meta.env.DEV ? 'http://localhost:2024' : (import.meta.env.VITE_API_URL || 'https://your-production-api-host.com'),
     threadId,
     onThreadId: setThreadId,
     onUpdateEvent: handleUpdateEvent,
