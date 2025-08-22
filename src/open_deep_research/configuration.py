@@ -119,11 +119,11 @@ class Configuration(BaseModel):
     )
     # Model Configuration
     summarization_model: str = Field(
-        default="anthropic:claude-3-haiku",
+        default="hyperbolic:Qwen/Qwen3-235B-A22B",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "anthropic:claude-3-haiku",
+                "default": "hyperbolic:Qwen/Qwen3-235B-A22B",
                 "description": "Model for summarizing research results from Tavily search results"
             }
         }
@@ -151,11 +151,11 @@ class Configuration(BaseModel):
         }
     )
     research_model: str = Field(
-        default="anthropic:claude-3-5-sonnet",
+        default="hyperbolic:Qwen/Qwen3-235B-A22B",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "anthropic:claude-3-5-sonnet",
+                "default": "hyperbolic:Qwen/Qwen3-235B-A22B",
                 "description": "Model for conducting research. NOTE: Make sure your Researcher Model supports the selected search API."
             }
         }
@@ -171,11 +171,11 @@ class Configuration(BaseModel):
         }
     )
     compression_model: str = Field(
-        default="anthropic:claude-3-5-sonnet",
+        default="hyperbolic:Qwen/Qwen3-235B-A22B",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "anthropic:claude-3-5-sonnet",
+                "default": "hyperbolic:Qwen/Qwen3-235B-A22B",
                 "description": "Model for compressing research findings from sub-agents. NOTE: Make sure your Compression Model supports the selected search API."
             }
         }
@@ -191,11 +191,11 @@ class Configuration(BaseModel):
         }
     )
     final_report_model: str = Field(
-        default="anthropic:claude-3-5-sonnet",
+        default="hyperbolic:Qwen/Qwen3-235B-A22B",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "anthropic:claude-3-5-sonnet",
+                "default": "hyperbolic:Qwen/Qwen3-235B-A22B",
                 "description": "Model for writing the final report from all research findings"
             }
         }
@@ -207,6 +207,47 @@ class Configuration(BaseModel):
                 "type": "number",
                 "default": 10000,
                 "description": "Maximum output tokens for final report model"
+            }
+        }
+    )
+    # Planner and Executor Model Configuration for Sequencing
+    planner_model: str = Field(
+        default="hyperbolic:Qwen/Qwen3-235B-A22B",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "hyperbolic:Qwen/Qwen3-235B-A22B",
+                "description": "Model for planning research strategy and generating dynamic sequences"
+            }
+        }
+    )
+    planner_model_max_tokens: int = Field(
+        default=15000,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 15000,
+                "description": "Maximum output tokens for planner model"
+            }
+        }
+    )
+    executor_model: str = Field(
+        default="hyperbolic:Qwen/QwQ-32B",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "hyperbolic:Qwen/QwQ-32B",
+                "description": "Model for executing specialized research tasks (sub-agents)"
+            }
+        }
+    )
+    executor_model_max_tokens: int = Field(
+        default=12000,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 12000,
+                "description": "Maximum output tokens for executor model"
             }
         }
     )
@@ -240,6 +281,16 @@ class Configuration(BaseModel):
                 "type": "boolean",
                 "default": False,
                 "description": "Enable dynamic sequence generation that creates optimal agent orderings based on research topic analysis"
+            }
+        }
+    )
+    enable_sequence_optimization: bool = Field(
+        default=False,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": False,
+                "description": "Enable sequence optimization and parallel research execution. When disabled, uses standard single-path research."
             }
         }
     )

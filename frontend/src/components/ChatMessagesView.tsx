@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Copy, CopyCheck } from 'lucide-react';
 import { InputForm } from '@/components/InputForm';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -350,10 +350,10 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
 
   return (
     <div
-      className={`relative break-words flex flex-col group max-w-[85%] md:max-w-[80%] w-full ${
+      className={`relative break-words flex flex-col group max-w-[85%] md:max-w-[80%] w-full rounded-xl p-3 shadow-sm bg-neutral-800 text-neutral-100 min-h-[56px] ${
         shouldShowActivity
-          ? 'rounded-xl p-3 shadow-sm bg-neutral-800 text-neutral-100 rounded-bl-none min-h-[56px]'
-          : ''
+          ? 'rounded-bl-none'
+          : 'rounded-bl-xl'
       }`}
     >
       {shouldShowActivity && (
@@ -440,18 +440,6 @@ interface ChatMessagesViewProps {
   onReset?: () => void;
 }
 
-// Utility function to extract current query from messages
-const getCurrentQuery = (messages: Message[]): string => {
-  const lastHumanMessage = messages
-    .filter(m => m.type === 'human')
-    .pop();
-  return typeof lastHumanMessage?.content === 'string' 
-    ? lastHumanMessage.content 
-    : 'Research Query';
-};
-
-
-
 export function ChatMessagesView({
   messages,
   isLoading,
@@ -463,6 +451,8 @@ export function ChatMessagesView({
   onReset,
 }: ChatMessagesViewProps) {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const prevMessageCountRef = useRef(messages.length);
+  const prevIsLoadingRef = useRef(isLoading);
 
   const handleCopy = async (text: string, messageId: string) => {
     try {
@@ -474,28 +464,57 @@ export function ChatMessagesView({
     }
   };
 
+  // Auto-scroll functionality
+  const scrollToBottom = (smooth = true) => {
+    if (!scrollAreaRef.current) return;
+    
+    // Get the viewport element from the ScrollArea
+    const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+    if (!viewport) return;
+
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+  };
+
+  const isNearBottom = (): boolean => {
+    if (!scrollAreaRef.current) return true;
+    
+    // Get the viewport element from the ScrollArea
+    const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+    if (!viewport) return true;
+
+    const { scrollTop, scrollHeight, clientHeight } = viewport;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    
+    // Consider "near bottom" if within 100px
+    return distanceFromBottom <= 100;
+  };
+
+  // Auto-scroll when messages change or loading state changes
+  useEffect(() => {
+    const hasNewMessages = messages.length > prevMessageCountRef.current;
+    const loadingStateChanged = isLoading !== prevIsLoadingRef.current;
+    
+    // Auto-scroll if:
+    // 1. New messages were added and user is near bottom, OR
+    // 2. Loading state changed to false (response completed) and user is near bottom
+    if ((hasNewMessages || (!isLoading && prevIsLoadingRef.current)) && isNearBottom()) {
+      // Small delay to ensure DOM is updated before scrolling
+      setTimeout(() => scrollToBottom(true), 50);
+    }
+
+    // Update refs for next comparison
+    prevMessageCountRef.current = messages.length;
+    prevIsLoadingRef.current = isLoading;
+  }, [messages.length, isLoading]);
+
   // Group messages to combine related AI responses and tool calls
   const messageGroups = groupMessages(messages);
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Header when parallel research is active */}
-      {isParallelResearch && (
-        <div className="border-b border-neutral-700 px-6 py-4 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-neutral-100">
-                Researching: "{getCurrentQuery(messages)}"
-              </h1>
-              <p className="text-sm text-neutral-400">
-                Testing 3 research approaches simultaneously...
-              </p>
-            </div>
-            {/* Progress indicators if needed */}
-          </div>
-        </div>
-      )}
-
       {/* Main content area */}
       <div className="flex-1 overflow-hidden min-h-0">
         {/* Sequential chat view */}
@@ -555,11 +574,11 @@ export function ChatMessagesView({
                         );
                       } else {
                         return (
-                          <div className="flex items-center justify-start h-full min-h-[56px]">
+                          <div className="relative group max-w-[85%] md:max-w-[80%] rounded-xl p-3 shadow-sm break-words bg-neutral-800 text-neutral-100 w-full min-h-[56px] flex items-center justify-start">
                             <div className="flex justify-center items-center gap-1">
-                              <div className="w-2 h-2 bg-white rounded-full animate-bounce [animation-delay:-0.32s]"></div>
-                              <div className="w-2 h-2 bg-white rounded-full animate-bounce [animation-delay:-0.16s]"></div>
-                              <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-neutral-100 rounded-full animate-bounce [animation-delay:-0.32s]"></div>
+                              <div className="w-2 h-2 bg-neutral-100 rounded-full animate-bounce [animation-delay:-0.16s]"></div>
+                              <div className="w-2 h-2 bg-neutral-100 rounded-full animate-bounce"></div>
                             </div>
                           </div>
                         );

@@ -9,6 +9,8 @@ These are the messages that have been exchanged so far from the user asking for 
 Today's date is {date}.
 
 Assess whether you need to ask a clarifying question, or if the user has already provided enough information for you to start research.
+
+CRITICAL: Do not include any thinking tags, reasoning traces, or explanatory text in your response. Provide only the structured output as requested without any additional commentary or reasoning steps.
 IMPORTANT: If you can see in the messages history that you have already asked a clarifying question, you almost always do not need to ask another one. Only ask another question if ABSOLUTELY NECESSARY.
 
 If there are acronyms, abbreviations, or unknown terms, ask the user to clarify.
@@ -18,20 +20,15 @@ If you need to ask a question, follow these guidelines:
 - Use bullet points or numbered lists if appropriate for clarity. Make sure that this uses markdown formatting and will be rendered correctly if the string output is passed to a markdown renderer.
 - Don't ask for unnecessary information, or information that the user has already provided. If you can see that the user has already provided the information, do not ask for it again.
 
-Respond in valid JSON format with these exact keys:
-"need_clarification": boolean,
-"question": "<question to ask the user to clarify the report scope>",
-"verification": "<verification message that we will start research>"
+If you need to ask a clarifying question:
+- Set need_clarification to true
+- Provide your clarifying question in the question field
+- Leave the verification field empty
 
-If you need to ask a clarifying question, return:
-"need_clarification": true,
-"question": "<your clarifying question>",
-"verification": ""
-
-If you do not need to ask a clarifying question, return:
-"need_clarification": false,
-"question": "",
-"verification": "<acknowledgement message that you will now start research based on the provided information>"
+If you do not need to ask a clarifying question:
+- Set need_clarification to false  
+- Leave the question field empty
+- Provide an acknowledgement message in the verification field
 
 For the verification message when no clarification is needed:
 - Acknowledge that you have sufficient information to proceed
@@ -52,6 +49,8 @@ The messages that have been exchanged so far between yourself and the user are:
 Today's date is {date}.
 
 You will return a single research question that will be used to guide the research.
+
+CRITICAL: Do not include any thinking tags, reasoning traces, or explanatory text in your response. Provide only the structured output as requested without any additional commentary or reasoning steps.
 
 Guidelines:
 1. Maximize Specificity and Detail

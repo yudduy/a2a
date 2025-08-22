@@ -35,6 +35,114 @@ export default function App() {
     isLoading: isParallelLoading 
   } = useParallelSequences();
 
+  // Map backend events to meaningful UI states
+  const mapBackendEventToUIState = useCallback((chunk: any): ProcessedEvent | null => {
+    try {
+      const data = chunk.data || {};
+      
+      // Extract node name from chunk data to determine current phase
+      let currentNode = '';
+      let eventDescription = '';
+      
+      // Handle different event structures
+      if (typeof data === 'object') {
+        // Check for node information in various formats
+        if (data.node) {
+          currentNode = data.node;
+        } else if (data.metadata?.langgraph_node) {
+          currentNode = data.metadata.langgraph_node;
+        } else if (Array.isArray(data) && data.length > 0 && data[0].metadata?.langgraph_node) {
+          currentNode = data[0].metadata.langgraph_node;
+        } else if (chunk.name) {
+          // Sometimes node name is in chunk.name
+          currentNode = chunk.name;
+        }
+        
+        // Extract meaningful description from event data
+        if (data.messages && Array.isArray(data.messages)) {
+          const lastMessage = data.messages[data.messages.length - 1];
+          if (lastMessage?.content && typeof lastMessage.content === 'string') {
+            eventDescription = lastMessage.content.slice(0, 100) + (lastMessage.content.length > 100 ? '...' : '');
+          }
+        } else if (data.content && typeof data.content === 'string') {
+          eventDescription = data.content.slice(0, 100) + (data.content.length > 100 ? '...' : '');
+        } else if (typeof data === 'string') {
+          eventDescription = data.slice(0, 100) + (data.length > 100 ? '...' : '');
+        }
+      } else if (typeof data === 'string') {
+        eventDescription = data.slice(0, 100) + (data.length > 100 ? '...' : '');
+      }
+      
+      // Map node names to user-friendly phase names and descriptions
+      const nodeToPhaseMap: Record<string, { title: string; description: string }> = {
+        'clarify_with_user': {
+          title: 'Asking Clarification',
+          description: 'Analyzing your request and determining if clarification is needed...'
+        },
+        'write_research_brief': {
+          title: 'Planning Research',
+          description: 'Creating structured research brief and planning approach...'
+        },
+        'sequence_optimization_router': {
+          title: 'Optimizing Strategy',
+          description: 'Selecting optimal research sequence for your topic...'
+        },
+        'research_supervisor': {
+          title: 'Researching',
+          description: 'Conducting focused research with specialized agents...'
+        },
+        'sequence_research_supervisor': {
+          title: 'Advanced Research',
+          description: 'Executing optimized research sequence with domain experts...'
+        },
+        'final_report_generation': {
+          title: 'Writing Brief',
+          description: 'Synthesizing findings into comprehensive research report...'
+        },
+        // Handle researcher subgraph nodes
+        'researcher': {
+          title: 'Deep Research',
+          description: 'Gathering detailed information from multiple sources...'
+        }
+      };
+      
+      // Determine the appropriate phase
+      let phaseInfo = nodeToPhaseMap[currentNode];
+      
+      // If no specific node mapping, try to infer from content
+      if (!phaseInfo && eventDescription) {
+        if (eventDescription.toLowerCase().includes('clarif') || eventDescription.toLowerCase().includes('question')) {
+          phaseInfo = nodeToPhaseMap['clarify_with_user'];
+        } else if (eventDescription.toLowerCase().includes('research') || eventDescription.toLowerCase().includes('search')) {
+          phaseInfo = nodeToPhaseMap['research_supervisor'];
+        } else if (eventDescription.toLowerCase().includes('report') || eventDescription.toLowerCase().includes('brief')) {
+          phaseInfo = nodeToPhaseMap['final_report_generation'];
+        }
+      }
+      
+      // Return mapped event or fallback
+      if (phaseInfo) {
+        return {
+          title: phaseInfo.title,
+          data: eventDescription || phaseInfo.description
+        };
+      } else if (currentNode) {
+        // Fallback with cleaned node name
+        const cleanTitle = currentNode.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return {
+          title: cleanTitle,
+          data: eventDescription || 'Processing...'
+        };
+      }
+      
+      return null; // Don't show unmappable events
+      
+    } catch (error) {
+      console.warn('Error mapping backend event:', error);
+      return null;
+    }
+  }, []);
+
   const handleSubmit = useCallback(async (query: string) => {
     if (!query.trim()) return;
     
@@ -63,8 +171,8 @@ export default function App() {
       
       // Add activity event for starting research
       const startEvent: ProcessedEvent = {
-        title: 'Starting Research',
-        data: 'Initializing deep research process...',
+        title: 'Initializing Research',
+        data: 'Connecting to research agents and preparing analysis...',
       };
       setLiveActivityEvents([startEvent]);
       
@@ -138,13 +246,12 @@ export default function App() {
           }
         }
         
-        // Handle activity events - simplified
-        if (chunk.event === 'events' || chunk.event === 'updates') {
-          const activityEvent: ProcessedEvent = {
-            title: `Processing: ${chunk.event}`,
-            data: JSON.stringify(chunk.data || {}),
-          };
-          setLiveActivityEvents(prev => [...prev, activityEvent]);
+        // Handle activity events with meaningful mapping
+        if (chunk.event === 'events' || chunk.event === 'updates' || chunk.event === 'debug') {
+          const activityEvent = mapBackendEventToUIState(chunk);
+          if (activityEvent) {
+            setLiveActivityEvents(prev => [...prev, activityEvent]);
+          }
         }
         
       }
@@ -167,17 +274,27 @@ export default function App() {
       // This is especially important for clarification scenarios
       stopParallelResearch();
       
-      // Move live activity to historical for the last AI message
-      if (liveActivityEvents.length > 0) {
-        const lastAiMessage = messages.filter(m => m.type === 'ai').pop();
-        if (lastAiMessage?.id) {
-          setHistoricalActivities(prev => ({
-            ...prev,
-            [lastAiMessage.id!]: [...liveActivityEvents],
-          }));
-          setLiveActivityEvents([]);
+      // Clean up activity state with proper timing
+      setTimeout(() => {
+        const currentEvents = liveActivityEvents;
+        
+        if (currentEvents.length > 0) {
+          // Get the latest state to find the last AI message
+          setMessages(currentMessages => {
+            const lastAiMessage = currentMessages.filter(m => m.type === 'ai').pop();
+            if (lastAiMessage?.id) {
+              setHistoricalActivities(prev => ({
+                ...prev,
+                [lastAiMessage.id!]: [...currentEvents],
+              }));
+            }
+            return currentMessages;
+          });
         }
-      }
+        
+        // Clear live activity events
+        setLiveActivityEvents([]);
+      }, 500); // Increased delay to ensure state is settled
     }
   }, [client, startParallelResearch, stopParallelResearch, liveActivityEvents, messages]);
 

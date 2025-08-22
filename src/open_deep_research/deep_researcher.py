@@ -41,6 +41,7 @@ from open_deep_research.state import (
 )
 from open_deep_research.utils import (
     anthropic_websearch_called,
+    clean_reasoning_model_output,
     get_all_tools,
     get_api_key_for_model,
     get_model_config_for_provider,
@@ -57,6 +58,70 @@ from open_deep_research.utils import (
 configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key", "base_url"),
 )
+
+
+def create_cleaned_structured_output(model, output_schema):
+    """Create a structured output model that cleans reasoning model outputs.
+    
+    This wrapper handles QwQ and other reasoning models that output thinking tags
+    by cleaning the output before structured parsing.
+    """
+    from langchain_core.output_parsers import PydanticOutputParser
+    from langchain_core.messages import AIMessage
+    import json
+    
+    # Create a wrapper that has the same interface as with_structured_output
+    class StructuredWrapper:
+        def __init__(self, model, output_schema):
+            self.model = model
+            self.output_schema = output_schema
+            
+        async def cleaned_structured_invoke(self, messages):
+            # Get raw response from the configured model
+            response = await self.model.ainvoke(messages)
+            
+            # Clean the content to remove thinking tags
+            cleaned_content = clean_reasoning_model_output(response.content)
+            
+            # Parse as JSON and create the structured output
+            try:
+                parsed_json = json.loads(cleaned_content)
+                return self.output_schema.model_validate(parsed_json)
+            except (json.JSONDecodeError, Exception) as e:
+                # Add logging to understand what content is being produced
+                import logging
+                logging.warning(f"JSON parsing failed for {self.output_schema.__name__}: {str(e)[:100]}...")
+                logging.debug(f"Cleaned content: {cleaned_content[:200]}...")
+                
+                # Special handling for ResearchQuestion objects when JSON parsing fails
+                if self.output_schema.__name__ == "ResearchQuestion":
+                    # Create a default ResearchQuestion with the cleaned content as research_brief
+                    return self.output_schema(research_brief=cleaned_content)
+                
+                # For other schemas, try the original structured output as fallback
+                try:
+                    parser = PydanticOutputParser(pydantic_object=self.output_schema)
+                    return parser.parse(cleaned_content)
+                except Exception as fallback_error:
+                    logging.error(f"PydanticOutputParser fallback also failed: {fallback_error}")
+                    # As a last resort, create a basic instance for ResearchQuestion
+                    if self.output_schema.__name__ == "ResearchQuestion":
+                        return self.output_schema(research_brief="Unable to parse research brief from model output.")
+                    raise fallback_error
+            
+        async def ainvoke(self, messages):
+            return await self.cleaned_structured_invoke(messages)
+            
+        def with_retry(self, **kwargs):
+            # Return self to maintain chain interface
+            return self
+            
+        def with_config(self, config):
+            # Update the underlying model config
+            self.model = self.model.with_config(config)
+            return self
+    
+    return StructuredWrapper(model, output_schema)
 
 async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Command[Literal["write_research_brief", "__end__"]]:
     """Analyze user messages and ask clarifying questions if the research scope is unclear.
@@ -86,13 +151,10 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
         tags=["langsmith:nostream"]
     )
     
-    # Configure model with structured output and retry logic
-    clarification_model = (
-        configurable_model
-        .with_structured_output(ClarifyWithUser)
-        .with_retry(stop_after_attempt=configurable.max_structured_output_retries)
-        .with_config(model_config)
-    )
+    # Configure model with cleaned structured output for reasoning models
+    clarification_model = create_cleaned_structured_output(
+        configurable_model, ClarifyWithUser
+    ).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(model_config)
     
     # Step 3: Analyze whether clarification is needed
     prompt_content = clarify_with_user_instructions.format(
@@ -139,13 +201,10 @@ async def write_research_brief(state: AgentState, config: RunnableConfig) -> Com
         tags=["langsmith:nostream"]
     )
     
-    # Configure model for structured research question generation
-    research_model = (
-        configurable_model
-        .with_structured_output(ResearchQuestion)
-        .with_retry(stop_after_attempt=configurable.max_structured_output_retries)
-        .with_config(research_model_config)
-    )
+    # Configure model for structured research question generation with cleaning
+    research_model = create_cleaned_structured_output(
+        configurable_model, ResearchQuestion
+    ).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(research_model_config)
     
     # Step 2: Generate structured research brief from user messages
     prompt_content = transform_messages_into_research_topic_prompt.format(
@@ -213,6 +272,10 @@ async def supervisor(state: SupervisorState, config: RunnableConfig) -> Command[
     # Step 2: Generate supervisor response based on current context
     supervisor_messages = state.get("supervisor_messages", [])
     response = await research_model.ainvoke(supervisor_messages)
+    
+    # Clean reasoning model output to remove thinking tags
+    if hasattr(response, 'content') and response.content:
+        response.content = clean_reasoning_model_output(response.content)
     
     # Step 3: Update state and proceed to tool execution
     return Command(
@@ -415,6 +478,10 @@ async def researcher(state: ResearcherState, config: RunnableConfig) -> Command[
     messages = [SystemMessage(content=researcher_prompt)] + researcher_messages
     response = await research_model.ainvoke(messages)
     
+    # Clean reasoning model output to remove thinking tags
+    if hasattr(response, 'content') and response.content:
+        response.content = clean_reasoning_model_output(response.content)
+    
     # Step 4: Update state and proceed to tool execution
     return Command(
         goto="researcher_tools",
@@ -552,6 +619,10 @@ async def compress_research(state: ResearcherState, config: RunnableConfig):
             # Execute compression
             response = await synthesizer_model.ainvoke(messages)
             
+            # Clean reasoning model output to remove thinking tags
+            if hasattr(response, 'content') and response.content:
+                response.content = clean_reasoning_model_output(response.content)
+            
             # Extract raw notes from all tool and AI messages
             raw_notes_content = "\n".join([
                 str(message.content) 
@@ -653,6 +724,10 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
                 HumanMessage(content=final_report_prompt)
             ])
             
+            # Clean reasoning model output to remove thinking tags
+            if hasattr(final_report, 'content') and final_report.content:
+                final_report.content = clean_reasoning_model_output(final_report.content)
+            
             # Return successful report generation
             return {
                 "final_report": final_report.content, 
@@ -705,7 +780,7 @@ async def sequence_optimization_router(state: AgentState, config: RunnableConfig
     
     if getattr(configurable, 'enable_sequence_optimization', False):
         try:
-            from open_deep_research.sequencing.integration import sequence_research_supervisor
+            from open_deep_research.sequencing.integration import dynamic_sequence_research_supervisor as sequence_research_supervisor
             return Command(goto="sequence_research_supervisor")
         except ImportError:
             # Fallback to standard supervisor if sequencing module not available
@@ -717,7 +792,7 @@ async def sequence_optimization_router(state: AgentState, config: RunnableConfig
 async def sequence_research_supervisor(state: AgentState, config: RunnableConfig) -> Command[Literal["final_report_generation"]]:
     """Enhanced research supervisor with sequence optimization capability."""
     try:
-        from open_deep_research.sequencing.integration import sequence_research_supervisor as seq_supervisor
+        from open_deep_research.sequencing.integration import dynamic_sequence_research_supervisor as seq_supervisor
         result = await seq_supervisor(state, config)
         return result
     except Exception as e:
@@ -744,6 +819,7 @@ deep_researcher_builder.add_node("final_report_generation", final_report_generat
 
 # Define main workflow edges for sequential execution
 deep_researcher_builder.add_edge(START, "clarify_with_user")                       # Entry point
+# clarify_with_user routes automatically via Command to either write_research_brief or END
 deep_researcher_builder.add_edge("write_research_brief", "sequence_optimization_router")  # Route to appropriate supervisor
 deep_researcher_builder.add_edge("research_supervisor", "final_report_generation") # Standard research to report
 deep_researcher_builder.add_edge("sequence_research_supervisor", "final_report_generation") # Sequence research to report

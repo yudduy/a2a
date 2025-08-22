@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from open_deep_research.configuration import Configuration
 from open_deep_research.utils import (
+    clean_reasoning_model_output,
     get_all_tools,
     get_api_key_for_model,
     get_model_config_for_provider,
@@ -212,11 +213,11 @@ Remember: Your goal is to provide unique value through your specialized perspect
     ) -> str:
         """Conduct focused research with cognitive offloading prevention."""
         
-        # Configure research model
+        # Configure executor model for specialized agents
         model_config = get_model_config_for_provider(
-            model_name=self.configurable.research_model,
-            api_key=get_api_key_for_model(self.configurable.research_model, self.config),
-            max_tokens=self.configurable.research_model_max_tokens,
+            model_name=self.configurable.executor_model,
+            api_key=get_api_key_for_model(self.configurable.executor_model, self.config),
+            max_tokens=self.configurable.executor_model_max_tokens,
             tags=["langsmith:nostream"]
         )
         
@@ -246,6 +247,11 @@ Remember: Your goal is to provide unique value through your specialized perspect
             try:
                 # Generate response
                 response = await research_model.ainvoke(messages)
+                
+                # Clean reasoning model output to remove thinking tags
+                if hasattr(response, 'content') and response.content:
+                    response.content = clean_reasoning_model_output(response.content)
+                
                 messages.append(response)
                 
                 # Check for completion

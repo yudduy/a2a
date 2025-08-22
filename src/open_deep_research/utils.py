@@ -81,16 +81,47 @@ async def tavily_search(
     # Character limit to stay within model token limits (configurable)
     max_char_to_include = configurable.max_content_length
     
-    # Initialize summarization model with retry logic
+    # Initialize summarization model with retry logic and reasoning output cleaning
     model_api_key = get_api_key_for_model(configurable.summarization_model, config)
-    summarization_model = init_chat_model(
+    base_model = init_chat_model(
         model=configurable.summarization_model,
         max_tokens=configurable.summarization_model_max_tokens,
         api_key=model_api_key,
         tags=["langsmith:nostream"]
-    ).with_structured_output(Summary).with_retry(
-        stop_after_attempt=configurable.max_structured_output_retries
     )
+    
+    # Create a cleaned structured output wrapper for reasoning models
+    async def cleaned_summary_invoke(messages):
+        response = await base_model.ainvoke(messages)
+        cleaned_content = clean_reasoning_model_output(response.content)
+        try:
+            import json
+            parsed_json = json.loads(cleaned_content)
+            return Summary.model_validate(parsed_json)
+        except (json.JSONDecodeError, Exception) as e:
+            # Add logging to understand what content is being produced
+            logging.warning(f"JSON parsing failed for Summary: {str(e)[:100]}...")
+            logging.debug(f"Cleaned content: {cleaned_content[:200]}...")
+            
+            # Try the original structured output parser as fallback
+            try:
+                from langchain_core.output_parsers import PydanticOutputParser
+                parser = PydanticOutputParser(pydantic_object=Summary)
+                return parser.parse(cleaned_content)
+            except Exception as fallback_error:
+                logging.error(f"PydanticOutputParser fallback also failed for Summary: {fallback_error}")
+                # As a last resort for Summary, create a basic instance with the cleaned content
+                return Summary(
+                    summary=cleaned_content[:500] + "..." if len(cleaned_content) > 500 else cleaned_content,
+                    key_excerpts="Unable to extract key excerpts from model output."
+                )
+    
+    # Simple wrapper that mimics the structured output interface
+    class CleanedSummaryModel:
+        async def ainvoke(self, messages):
+            return await cleaned_summary_invoke(messages)
+    
+    summarization_model = CleanedSummaryModel()
     
     # Step 4: Create summarization tasks (skip empty content)
     async def noop():
@@ -195,7 +226,12 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
             timeout=60.0  # 60 second timeout for summarization
         )
         
+        # Clean reasoning model output to remove thinking tags
+        if hasattr(summary, 'content') and summary.content:
+            summary.content = clean_reasoning_model_output(summary.content)
+        
         # Format the summary with structured sections
+        # Note: Expecting Summary structured output with .summary and .key_excerpts attributes
         formatted_summary = (
             f"<summary>\n{summary.summary}\n</summary>\n\n"
             f"<key_excerpts>\n{summary.key_excerpts}\n</key_excerpts>"
@@ -242,6 +278,49 @@ def think_tool(reflection: str) -> str:
         Confirmation that reflection was recorded for decision-making
     """
     return f"Reflection recorded: {reflection}"
+
+
+##########################
+# Reasoning Model Output Cleaning Utils
+##########################
+
+def clean_reasoning_model_output(content: str) -> str:
+    """Clean reasoning model output by removing thinking tags and extracting pure content.
+    
+    QwQ and other reasoning models often output thinking patterns with <think> tags
+    that need to be removed for structured output parsing. This function:
+    1. Removes any <think>...</think> blocks from the beginning or throughout the content
+    2. Extracts the clean JSON or text content
+    3. Handles malformed outputs where thinking tags aren't properly closed
+    
+    Args:
+        content: Raw model output that may contain thinking tags and JSON
+        
+    Returns:
+        Cleaned content ready for structured parsing or JSON validation
+    """
+    import re
+    
+    # Remove thinking tags and their content from the beginning
+    # Pattern matches: <think>...</think> or <think>...{content}
+    think_pattern = r'<think>.*?</think>\s*'
+    cleaned = re.sub(think_pattern, '', content, flags=re.DOTALL)
+    
+    # Handle unclosed thinking tags (remove everything from <think> to first {)
+    unclosed_think_pattern = r'<think>.*?(?=\{)'
+    cleaned = re.sub(unclosed_think_pattern, '', cleaned, flags=re.DOTALL)
+    
+    # Remove any remaining <think> or </think> tags
+    cleaned = re.sub(r'</?think>', '', cleaned)
+    
+    # Extract JSON content if present (find content between first { and last })
+    json_match = re.search(r'\{.*\}', cleaned, flags=re.DOTALL)
+    if json_match:
+        return json_match.group(0)
+    
+    # If no JSON found, return the cleaned content stripped of whitespace
+    return cleaned.strip()
+
 
 ##########################
 # MCP Utils
@@ -831,6 +910,8 @@ MODEL_TOKEN_LIMITS = {
     "hyperbolic:meta-llama/Meta-Llama-3.1-70B-Instruct": 128000,
     "hyperbolic:meta-llama/Meta-Llama-3.3-70B-Instruct": 128000,
     "hyperbolic:mistralai/Mixtral-8x7B-Instruct-v0.1": 32768,
+    "hyperbolic:Qwen/Qwen3-235B-A22B": 128000,
+    "hyperbolic:Qwen/QwQ-32B": 32768,
 }
 
 def get_model_token_limit(model_string):

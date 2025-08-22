@@ -16,7 +16,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
 from open_deep_research.configuration import Configuration
-from open_deep_research.utils import get_api_key_for_model, get_model_config_for_provider
+from open_deep_research.utils import get_api_key_for_model, get_model_config_for_provider, clean_reasoning_model_output
 from open_deep_research.sequencing.models import (
     AdaptiveLearningState,
     AgentType,
@@ -129,11 +129,11 @@ Provide scores and identify the key insight types present."""
             QuestionGenerationResult with generated questions and context
         """
         try:
-            # Configure model for question generation
+            # Configure planner model for question generation
             model_config = get_model_config_for_provider(
-                model_name=self.configurable.research_model,
-                api_key=get_api_key_for_model(self.configurable.research_model, self.config),
-                max_tokens=self.configurable.research_model_max_tokens,
+                model_name=self.configurable.planner_model,
+                api_key=get_api_key_for_model(self.configurable.planner_model, self.config),
+                max_tokens=self.configurable.planner_model_max_tokens,
                 tags=["langsmith:nostream"]
             )
             
@@ -159,6 +159,10 @@ Provide scores and identify the key insight types present."""
                 SystemMessage(content=prompt_content),
                 HumanMessage(content="Generate targeted research questions based on the previous insights.")
             ])
+            
+            # Clean reasoning model output to remove thinking tags
+            if hasattr(response, 'content') and response.content:
+                response.content = clean_reasoning_model_output(response.content)
             
             # Parse response to extract questions
             questions = self._parse_questions_from_response(response.content)
@@ -362,11 +366,11 @@ Focus on generating questions that leverage technical trend analysis:
             InsightAnalysisResult with quality metrics and analysis
         """
         try:
-            # Configure model for insight analysis
+            # Configure planner model for insight analysis
             model_config = get_model_config_for_provider(
-                model_name=self.configurable.research_model,
-                api_key=get_api_key_for_model(self.configurable.research_model, self.config),
-                max_tokens=self.configurable.research_model_max_tokens,
+                model_name=self.configurable.planner_model,
+                api_key=get_api_key_for_model(self.configurable.planner_model, self.config),
+                max_tokens=self.configurable.planner_model_max_tokens,
                 tags=["langsmith:nostream"]
             )
             
@@ -385,6 +389,10 @@ Focus on generating questions that leverage technical trend analysis:
                 SystemMessage(content=prompt_content),
                 HumanMessage(content="Analyze these insights and provide quality scores.")
             ])
+            
+            # Clean reasoning model output to remove thinking tags
+            if hasattr(response, 'content') and response.content:
+                response.content = clean_reasoning_model_output(response.content)
             
             # Parse quality metrics from response
             quality_metrics = self._parse_quality_metrics(response.content)
