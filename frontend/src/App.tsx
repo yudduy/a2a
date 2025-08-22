@@ -30,7 +30,6 @@ export default function App() {
   
   // Parallel sequences for research streams
   const { 
-    sequences, 
     start: startParallelResearch, 
     stop: stopParallelResearch,
     isLoading: isParallelLoading 
@@ -89,7 +88,27 @@ export default function App() {
             const filtered = newMessages.filter((m: any) => 
               m.id && !existing.has(m.id) && 
               (m.type === 'human' || m.type === 'ai' || m.type === 'tool')
-            );
+            ) as Message[];
+            
+            // Check if this looks like a clarification question
+            const aiMessages = filtered.filter((m: Message) => m.type === 'ai');
+            const containsClarificationIndicators = aiMessages.some((m: Message) => {
+              const content = typeof m.content === 'string' ? m.content.toLowerCase() : '';
+              return content.includes('clarif') || 
+                     content.includes('could you') || 
+                     content.includes('please provide') ||
+                     content.includes('need more information') ||
+                     content.includes('which of the following') ||
+                     content.includes('what type of') ||
+                     content.includes('specify') ||
+                     content.includes('?');
+            });
+            
+            if (containsClarificationIndicators) {
+              // Stop parallel research immediately when clarification is detected
+              setTimeout(() => stopParallelResearch(), 100);
+            }
+            
             return [...prev, ...filtered];
           });
         }
@@ -102,6 +121,7 @@ export default function App() {
           };
           setLiveActivityEvents(prev => [...prev, activityEvent]);
         }
+        
       }
       
     } catch (error) {
@@ -117,6 +137,9 @@ export default function App() {
       
     } finally {
       setIsLoading(false);
+      // Stop parallel research when main stream completes
+      // This is especially important for clarification scenarios
+      stopParallelResearch();
       
       // Move live activity to historical for the last AI message
       if (liveActivityEvents.length > 0) {
@@ -130,7 +153,7 @@ export default function App() {
         }
       }
     }
-  }, [client, startParallelResearch, liveActivityEvents, messages]);
+  }, [client, startParallelResearch, stopParallelResearch, liveActivityEvents, messages]);
 
   const handleCancel = useCallback(() => {
     setIsLoading(false);
