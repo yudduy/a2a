@@ -8,7 +8,7 @@ import { ProcessedEvent } from '@/components/ActivityTimeline';
 
 export default function App() {
   // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<(Message & { _locallyAdded?: boolean })[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [liveActivityEvents, setLiveActivityEvents] = useState<ProcessedEvent[]>([]);
   const [historicalActivities, setHistoricalActivities] = useState<Record<string, ProcessedEvent[]>>({});
@@ -41,16 +41,17 @@ export default function App() {
     try {
       setIsLoading(true);
       
-      // Add user message immediately
-      const userMessage: Message = {
+      // Add user message immediately with local flag
+      const userMessage = {
         id: `user-${Date.now()}`,
-        type: 'human',
+        type: 'human' as const,
         content: query,
+        _locallyAdded: true,
       };
       setMessages(prev => [...prev, userMessage]);
       
-      // Start parallel research sequences
-      await startParallelResearch(query);
+      // Note: Parallel research disabled to ensure single supervisor flow
+      // await startParallelResearch(query);
       
       // Create or get thread for main chat
       let threadId = threadIdRef.current;
@@ -80,37 +81,61 @@ export default function App() {
       
       // Process stream
       for await (const chunk of stream) {
-        // Handle messages
-        if (chunk.event === 'messages' && chunk.data) {
-          const newMessages = Array.isArray(chunk.data) ? chunk.data : [chunk.data];
-          setMessages(prev => {
-            const existing = new Set(prev.map(m => m.id));
-            const filtered = newMessages.filter((m: any) => 
-              m.id && !existing.has(m.id) && 
-              (m.type === 'human' || m.type === 'ai' || m.type === 'tool')
-            ) as Message[];
-            
-            // Check if this looks like a clarification question
-            const aiMessages = filtered.filter((m: Message) => m.type === 'ai');
-            const containsClarificationIndicators = aiMessages.some((m: Message) => {
-              const content = typeof m.content === 'string' ? m.content.toLowerCase() : '';
-              return content.includes('clarif') || 
-                     content.includes('could you') || 
-                     content.includes('please provide') ||
-                     content.includes('need more information') ||
-                     content.includes('which of the following') ||
-                     content.includes('what type of') ||
-                     content.includes('specify') ||
-                     content.includes('?');
-            });
-            
-            if (containsClarificationIndicators) {
-              // Stop parallel research immediately when clarification is detected
-              setTimeout(() => stopParallelResearch(), 100);
+        // Handle both 'messages' and 'values' events
+        if ((chunk.event === 'messages' || chunk.event === 'values') && chunk.data) {
+          // For 'values' events, extract messages from the data
+          let messagesToProcess: Message[] = [];
+          
+          if (chunk.event === 'values') {
+            // For values events, check if data has messages property
+            const valuesData = chunk.data as any;
+            if (valuesData && typeof valuesData === 'object' && valuesData.messages) {
+              messagesToProcess = Array.isArray(valuesData.messages) ? valuesData.messages : [valuesData.messages];
             }
-            
-            return [...prev, ...filtered];
-          });
+          } else if (chunk.event === 'messages') {
+            // For messages events, handle the data directly
+            const messageData = chunk.data as any;
+            if (Array.isArray(messageData)) {
+              // Handle messages/complete and messages/partial events
+              messagesToProcess = messageData;
+            } else if (messageData && typeof messageData === 'object') {
+              // Handle other message event formats
+              if ('message' in messageData) {
+                messagesToProcess = [messageData.message];
+              }
+            }
+          }
+          
+          if (messagesToProcess.length > 0) {
+            setMessages(prev => {
+              const existing = new Set(prev.map(m => m.id));
+              const existingLocalUserContents = new Set(
+                prev
+                  .filter(m => m.type === 'human' && m._locallyAdded)
+                  .map(m => m.content)
+              );
+              
+              const filtered = messagesToProcess.filter((m: Message) => {
+                // Skip if we already have this message ID
+                if (m.id && existing.has(m.id)) {
+                  return false;
+                }
+                
+                // Skip user messages if we already have locally added message with same content
+                if (m.type === 'human' && existingLocalUserContents.has(m.content)) {
+                  return false;
+                }
+                
+                // Only include human, ai, or tool messages
+                return m.type === 'human' || m.type === 'ai' || m.type === 'tool';
+              });
+              
+              // Convert Message to extended message with _locallyAdded flag
+              const localFiltered = filtered.map(m => ({ ...m, _locallyAdded: false }));
+              
+              return [...prev, ...localFiltered];
+            });
+          }
         }
         
         // Handle activity events - simplified
@@ -128,10 +153,11 @@ export default function App() {
       console.error('Chat submission error:', error);
       
       // Add error message
-      const errorMessage: Message = {
+      const errorMessage = {
         id: `error-${Date.now()}`,
-        type: 'ai',
+        type: 'ai' as const,
         content: `Error: ${error instanceof Error ? error.message : 'An unexpected error occurred'}`,
+        _locallyAdded: true,
       };
       setMessages(prev => [...prev, errorMessage]);
       
@@ -180,7 +206,7 @@ export default function App() {
           />
         ) : (
           <ChatMessagesView
-            messages={messages}
+            messages={messages as Message[]}
             isLoading={isLoading || isParallelLoading}
             scrollAreaRef={scrollAreaRef}
             onSubmit={handleSubmit}
