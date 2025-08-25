@@ -48,17 +48,30 @@ class AgentCapabilityMapper:
         """
         expertise_areas = []
         
-        # Check for explicit expertise field
-        if "expertise" in agent_config:
+        # Check for explicit expertise_areas field (from markdown frontmatter)
+        if "expertise_areas" in agent_config:
+            if isinstance(agent_config["expertise_areas"], list):
+                expertise_areas.extend(agent_config["expertise_areas"])
+            elif isinstance(agent_config["expertise_areas"], str):
+                expertise_areas.append(agent_config["expertise_areas"])
+        
+        # Check for explicit expertise field (legacy support)
+        if "expertise" in agent_config and not expertise_areas:
             if isinstance(agent_config["expertise"], list):
                 expertise_areas.extend(agent_config["expertise"])
             elif isinstance(agent_config["expertise"], str):
                 expertise_areas.append(agent_config["expertise"])
         
-        # Extract from description and prompt
+        # If we have explicit expertise areas, use them and skip inference
+        if expertise_areas:
+            return expertise_areas
+        
+        # Extract from description, system_prompt, and other text fields
         text_fields = []
         if "description" in agent_config:
             text_fields.append(agent_config["description"].lower())
+        if "system_prompt" in agent_config:
+            text_fields.append(agent_config["system_prompt"].lower())
         if "prompt" in agent_config:
             text_fields.append(agent_config["prompt"].lower())
         if "instructions" in agent_config:
@@ -90,6 +103,15 @@ class AgentCapabilityMapper:
         if "description" in agent_config:
             return agent_config["description"]
         
+        if "system_prompt" in agent_config:
+            # Extract first sentence or first 200 chars of system prompt as description
+            prompt = agent_config["system_prompt"]
+            first_sentence = prompt.split('.')[0]
+            if len(first_sentence) < 300:
+                return first_sentence + "."
+            else:
+                return prompt[:200] + "..."
+        
         if "prompt" in agent_config:
             # Extract first sentence or first 100 chars of prompt as description
             prompt = agent_config["prompt"]
@@ -119,33 +141,110 @@ class AgentCapabilityMapper:
             elif isinstance(agent_config["use_cases"], str):
                 use_cases.append(agent_config["use_cases"])
         
-        # Infer from expertise areas
-        expertise_areas = self._extract_expertise_areas(agent_config)
+        # Check for explicit examples field (from markdown frontmatter)
+        if "examples" in agent_config and isinstance(agent_config["examples"], list):
+            use_cases.extend(agent_config["examples"])
         
-        for area in expertise_areas:
-            area_lower = area.lower()
-            if "academic" in area_lower:
-                use_cases.append("Literature reviews and academic research")
-            elif "technical" in area_lower:
-                use_cases.append("Technical analysis and implementation research")
-            elif "market" in area_lower:
-                use_cases.append("Market analysis and business research")
-            elif "data" in area_lower:
-                use_cases.append("Data analysis and quantitative research")
-            elif "regulatory" in area_lower:
-                use_cases.append("Compliance and regulatory research")
-            elif "user" in area_lower:
-                use_cases.append("User experience and customer research")
-            elif "security" in area_lower:
-                use_cases.append("Security analysis and risk assessment")
-            elif "innovation" in area_lower:
-                use_cases.append("Innovation and trend analysis")
+        # Infer from expertise areas only if no explicit use cases or examples found
+        if not use_cases:
+            expertise_areas = self._extract_expertise_areas(agent_config)
+            
+            for area in expertise_areas:
+                area_lower = area.lower()
+                if "academic" in area_lower:
+                    use_cases.append("Literature reviews and academic research")
+                elif "technical" in area_lower:
+                    use_cases.append("Technical analysis and implementation research")
+                elif "market" in area_lower:
+                    use_cases.append("Market analysis and business research")
+                elif "data" in area_lower:
+                    use_cases.append("Data analysis and quantitative research")
+                elif "regulatory" in area_lower:
+                    use_cases.append("Compliance and regulatory research")
+                elif "user" in area_lower:
+                    use_cases.append("User experience and customer research")
+                elif "security" in area_lower:
+                    use_cases.append("Security analysis and risk assessment")
+                elif "innovation" in area_lower:
+                    use_cases.append("Innovation and trend analysis")
         
         # Default use cases if none found
         if not use_cases:
             use_cases = ["General research and information gathering"]
         
         return list(set(use_cases))  # Remove duplicates
+    
+    def _extract_core_responsibilities(self, agent_config: Dict[str, Any]) -> List[str]:
+        """Extract core responsibilities from agent system prompt.
+        
+        Args:
+            agent_config: Agent configuration dictionary
+            
+        Returns:
+            List of core responsibility strings
+        """
+        responsibilities = []
+        
+        # Extract from system_prompt if available
+        system_prompt = agent_config.get("system_prompt", "")
+        if system_prompt:
+            # Look for common responsibility section markers
+            responsibility_markers = [
+                "## Core Responsibilities",
+                "### Core Responsibilities", 
+                "## Responsibilities",
+                "### Responsibilities",
+                "## Your Role",
+                "### Your Role"
+            ]
+            
+            for marker in responsibility_markers:
+                if marker in system_prompt:
+                    # Find the section and extract responsibilities
+                    section_start = system_prompt.find(marker)
+                    next_section_start = section_start + len(marker)
+                    
+                    # Find the next major section (##) that's NOT a subsection (###)
+                    # We need to find a line that starts with exactly "##" followed by space
+                    lines = system_prompt[next_section_start:].split('\n')
+                    section_end = len(system_prompt)  # default to end of prompt
+                    
+                    for i, line in enumerate(lines):
+                        # Look for major section headers (## but not ###)
+                        if line.startswith('## ') and not line.startswith('### '):
+                            section_end = next_section_start + sum(len(l) + 1 for l in lines[:i])
+                            break
+                    
+                    section_text = system_prompt[section_start:section_end]
+                    
+                    # Extract responsibilities using multiple patterns
+                    import re
+                    
+                    # Look for subsection headers (### Something) - these are major responsibilities
+                    subsection_pattern = r'^###\s*([^#\n]+)'
+                    subsections = re.findall(subsection_pattern, section_text, re.MULTILINE)
+                    
+                    # Also look for bullet points under each subsection
+                    bullet_pattern = r'^-\s+([^\n]+)'
+                    bullets = re.findall(bullet_pattern, section_text, re.MULTILINE)
+                    
+                    # Prefer subsection headers as they represent major responsibility areas
+                    if subsections:
+                        responsibilities.extend(subsections)
+                    elif bullets:
+                        responsibilities.extend(bullets[:8])  # Limit to avoid too many bullets
+                    
+                    break
+        
+        # Clean up responsibilities
+        cleaned = []
+        for resp in responsibilities:
+            # Remove markdown formatting and extra whitespace
+            cleaned_resp = resp.strip().replace("**", "").replace("*", "")
+            if cleaned_resp and len(cleaned_resp) > 10:  # Only meaningful responsibilities
+                cleaned.append(cleaned_resp)
+        
+        return cleaned[:5]  # Limit to top 5 responsibilities
     
     def _create_strength_summary(self, agent_config: Dict[str, Any]) -> str:
         """Create a one-line strength summary for the agent.
@@ -183,7 +282,9 @@ class AgentCapabilityMapper:
             expertise_areas=self._extract_expertise_areas(agent_config),
             description=self._extract_description(agent_config),
             typical_use_cases=self._extract_use_cases(agent_config),
-            strength_summary=self._create_strength_summary(agent_config)
+            strength_summary=self._create_strength_summary(agent_config),
+            core_responsibilities=self._extract_core_responsibilities(agent_config),
+            completion_indicators=agent_config.get("completion_indicators", [])
         )
     
     def get_all_agent_capabilities(self) -> List[AgentCapability]:

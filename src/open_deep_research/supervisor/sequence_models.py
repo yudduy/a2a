@@ -16,6 +16,14 @@ class AgentCapability(BaseModel):
     description: str = Field(description="Brief description of agent capabilities")
     typical_use_cases: List[str] = Field(description="Common scenarios where this agent is useful")
     strength_summary: str = Field(description="One-line summary of agent's main strength")
+    core_responsibilities: List[str] = Field(
+        default_factory=list,
+        description="Core responsibilities extracted from agent system prompt"
+    )
+    completion_indicators: List[str] = Field(
+        default_factory=list,
+        description="Indicators that signal when the agent has completed its work"
+    )
 
 
 class AgentSequence(BaseModel):

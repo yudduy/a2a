@@ -96,6 +96,14 @@ class AgentCapability(BaseModel):
     description: str = Field(description="Brief description of agent capabilities")
     typical_use_cases: List[str] = Field(description="Common scenarios where this agent is useful")
     strength_summary: str = Field(description="One-line summary of agent's main strength")
+    core_responsibilities: List[str] = Field(
+        default_factory=list,
+        description="Core responsibilities extracted from agent system prompt"
+    )
+    completion_indicators: List[str] = Field(
+        default_factory=list,
+        description="Indicators that signal when the agent has completed its work"
+    )
 
 
 class AgentSequence(BaseModel):
@@ -124,8 +132,6 @@ class SequenceGenerationInput(BaseModel):
         default_factory=dict,
         description="Any constraints on sequence generation"
     )
-    
-    # Generation mode selection
     generation_mode: str = Field(
         default="hybrid",
         description="Generation mode: 'rule_based', 'llm_based', or 'hybrid'"
@@ -1574,6 +1580,8 @@ Analyze the given research topic and available agents, then generate exactly 3 d
 2. **Agent Synergy**: Agents should build on each other's work in logical progression  
 3. **Comprehensive Coverage**: Sequences should collectively cover all important research angles
 4. **Efficiency**: Avoid redundancy while ensuring thorough investigation
+5. **Intelligent Matching**: Match agent capabilities to research requirements based on expertise, responsibilities, and typical use cases
+6. **Natural Handoffs**: Use completion indicators to ensure smooth transitions between agents
 
 ## Research Approach Types
 - **Foundational-First**: Start with background/fundamentals, then specialized analysis
@@ -1583,10 +1591,13 @@ Analyze the given research topic and available agents, then generate exactly 3 d
 - **Timeline-Based**: Historical context → current state → future trends
 
 ## Agent Selection Guidelines
-- Consider each agent's expertise areas and typical use cases
-- Ensure logical information flow between agents
-- Balance depth vs breadth based on research topic complexity
-- Account for potential information dependencies
+- **Expertise Matching**: Consider each agent's expertise areas and how they align with research needs
+- **Capability Analysis**: Review core responsibilities to understand what each agent can deliver
+- **Use Case Alignment**: Match agent typical use cases with research requirements
+- **Sequential Logic**: Ensure logical information flow between agents (e.g., research → analysis → synthesis)
+- **Complementary Skills**: Select agents with complementary rather than overlapping capabilities
+- **Completion Signals**: Use completion indicators to understand when agents naturally hand off to others
+- **Information Dependencies**: Consider what each agent needs from previous agents to be effective
 
 ## Required JSON Output Structure
 You must output a JSON object with exactly these fields:
@@ -1622,16 +1633,29 @@ CRITICAL: Respond with ONLY the valid JSON object structure shown above. Do not 
     def _create_llm_user_prompt(self, input_data: SequenceGenerationInput) -> str:
         """Create the user prompt with research context and available agents."""
         
-        # Format available agents
+        # Format available agents with comprehensive descriptions
         agent_descriptions = []
         for agent in input_data.available_agents:
+            # Build rich agent description
             agent_desc = f"""
 **{agent.name}**
-- Expertise: {', '.join(agent.expertise_areas)}
+- Expertise Areas: {', '.join(agent.expertise_areas)}
 - Description: {agent.description}
 - Strength: {agent.strength_summary}
-- Use Cases: {', '.join(agent.typical_use_cases)}
-"""
+- Use Cases: {', '.join(agent.typical_use_cases[:3])}"""  # Limit to top 3 use cases
+            
+            # Add core responsibilities if available
+            if agent.core_responsibilities:
+                responsibilities = ', '.join(agent.core_responsibilities[:3])  # Limit to top 3
+                agent_desc += f"""
+- Core Responsibilities: {responsibilities}"""
+            
+            # Add completion indicators if available
+            if agent.completion_indicators:
+                indicators = ', '.join(agent.completion_indicators[:3])  # Limit to top 3
+                agent_desc += f"""
+- Completion Indicators: {indicators}"""
+            
             agent_descriptions.append(agent_desc)
         
         agents_text = "\n".join(agent_descriptions)
