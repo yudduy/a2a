@@ -7,6 +7,7 @@ import { LLMGeneratedSequence, RoutedMessage } from '@/types/parallel';
 import { TypedMarkdown } from '@/components/ui/typed-markdown';
 import { ActivityTimeline, ProcessedEvent } from '@/components/ActivityTimeline';
 import ReactMarkdown from 'react-markdown';
+import { assignStrategyTheme, StrategyTheme, getThemeColors } from '@/lib/strategy-themes';
 
 // ========================================
 // Component Interfaces
@@ -36,6 +37,7 @@ interface TabButtonProps {
   isActive: boolean;
   status: 'initializing' | 'typing' | 'paused' | 'completed' | 'error';
   messageCount: number;
+  strategyTheme: StrategyTheme;
   onClick: () => void;
 }
 
@@ -45,6 +47,7 @@ interface SequenceTabContentProps {
   isActive: boolean;
   isLoading: boolean;
   index: number;
+  strategyTheme: StrategyTheme;
 }
 
 // ========================================
@@ -145,6 +148,7 @@ const TabButton: React.FC<TabButtonProps> = React.memo(({
   isActive,
   status,
   messageCount,
+  strategyTheme,
   onClick,
 }) => {
   const getStatusIndicator = () => {
@@ -172,34 +176,97 @@ const TabButton: React.FC<TabButtonProps> = React.memo(({
     }
   };
 
+  const IconComponent = strategyTheme.icon;
+  
   return (
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-t-md transition-all min-w-0",
+        "flex flex-col items-start gap-1 px-3 py-3 text-sm font-medium rounded-t-md transition-all min-w-0 relative group",
         isActive 
-          ? "bg-neutral-800 text-white border-b-2 border-blue-400 shadow-sm"
-          : "bg-neutral-900 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border-b-2 border-transparent"
+          ? "bg-neutral-800 text-white shadow-sm"
+          : "bg-neutral-900 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
       )}
+      style={{
+        borderBottom: isActive ? `2px solid ${strategyTheme.colors.primary}` : '2px solid transparent',
+        borderLeft: isActive ? `3px solid ${strategyTheme.colors.primary}` : '3px solid transparent'
+      }}
     >
-      <Badge variant="outline" className="text-xs flex-shrink-0">
-        {index + 1}
-      </Badge>
-      <span className="truncate max-w-[100px] sm:max-w-[120px] md:max-w-[140px]">
-        {sequence.sequence_name}
-      </span>
-      <div className="flex items-center gap-1 flex-shrink-0">
-        {getStatusIndicator()}
-        {messageCount > 0 && (
-          <Badge variant="secondary" className="text-xs px-1 py-0">
-            {messageCount}
-          </Badge>
+      {/* Strategic Header Row */}
+      <div className="flex items-center gap-2 w-full min-w-0">
+        <div 
+          className="p-1 rounded flex-shrink-0"
+          style={{ 
+            backgroundColor: isActive ? `${strategyTheme.colors.primary}20` : 'transparent',
+            color: isActive ? strategyTheme.colors.primary : strategyTheme.colors.secondary
+          }}
+        >
+          <IconComponent className="w-3 h-3" />
+        </div>
+        <Badge 
+          variant="outline" 
+          className="text-xs flex-shrink-0"
+          style={{
+            borderColor: strategyTheme.colors.primary,
+            color: isActive ? strategyTheme.colors.primary : strategyTheme.colors.secondary
+          }}
+        >
+          {index + 1}
+        </Badge>
+        <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+          {getStatusIndicator()}
+          {messageCount > 0 && (
+            <Badge 
+              variant="secondary" 
+              className="text-xs px-1 py-0"
+              style={{
+                backgroundColor: `${strategyTheme.colors.primary}30`,
+                color: strategyTheme.colors.text,
+                borderColor: strategyTheme.colors.primary
+              }}
+            >
+              {messageCount}
+            </Badge>
+          )}
+        </div>
+      </div>
+      
+      {/* Strategic Identity Row */}
+      <div className="w-full min-w-0 space-y-1">
+        <div className="flex items-center gap-2">
+          <span 
+            className="font-semibold truncate text-xs"
+            style={{ color: isActive ? strategyTheme.colors.primary : strategyTheme.colors.text }}
+          >
+            {strategyTheme.shortName}
+          </span>
+          <span className="text-xs text-neutral-500 hidden lg:block">
+            {getStatusText()}
+          </span>
+        </div>
+        <span className="text-xs text-neutral-400 truncate max-w-[140px] sm:max-w-[160px] md:max-w-[180px] block">
+          {sequence.sequence_name}
+        </span>
+        
+        {/* Strategic Characteristics Pills */}
+        {isActive && (
+          <div className="flex flex-wrap gap-1 mt-1 max-w-[200px]">
+            {strategyTheme.characteristics.slice(0, 2).map((char, idx) => (
+              <span
+                key={idx}
+                className="text-xs px-1 py-0.5 rounded"
+                style={{
+                  backgroundColor: `${strategyTheme.colors.primary}20`,
+                  color: strategyTheme.colors.primary,
+                  fontSize: '10px'
+                }}
+              >
+                {char}
+              </span>
+            ))}
+          </div>
         )}
       </div>
-      {/* Status tooltip for mobile */}
-      <span className="sr-only sm:not-sr-only text-xs text-neutral-500 hidden lg:block">
-        {getStatusText()}
-      </span>
     </button>
   );
 });
@@ -214,6 +281,7 @@ const SequenceTabContent: React.FC<SequenceTabContentProps> = React.memo(({
   isActive,
   isLoading,
   index,
+  strategyTheme,
 }) => {
   if (!isActive) return null;
 
@@ -238,42 +306,126 @@ const SequenceTabContent: React.FC<SequenceTabContentProps> = React.memo(({
 
   return (
     <div className="p-4 space-y-4 h-full overflow-y-auto">
-      {/* Sequence Header */}
-      <div className="border-b border-neutral-700 pb-3">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-white flex items-center gap-2">
-            <GitBranch className="w-4 h-4 text-blue-400" />
-            {sequence.sequence_name}
-          </h3>
+      {/* Strategic Context Header */}
+      <div 
+        className="border-b pb-4 mb-4 rounded-t-lg p-4 -mt-4 -mx-4 mx-4"
+        style={{
+          borderColor: strategyTheme.colors.border,
+          backgroundColor: `${strategyTheme.colors.background}15`
+        }}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div 
+              className="p-2 rounded-lg"
+              style={{ 
+                backgroundColor: `${strategyTheme.colors.primary}20`,
+                color: strategyTheme.colors.primary
+              }}
+            >
+              <strategyTheme.icon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 
+                className="font-bold text-lg mb-1"
+                style={{ color: strategyTheme.colors.primary }}
+              >
+                {strategyTheme.name}
+              </h3>
+              <p className="text-sm font-medium text-white">
+                {sequence.sequence_name}
+              </p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
+            <Badge 
+              variant="outline" 
+              className="text-xs"
+              style={{
+                borderColor: strategyTheme.colors.primary,
+                color: strategyTheme.colors.text
+              }}
+            >
               {Math.round(sequence.confidence_score * 100)}% confidence
             </Badge>
             {contentMessages.length > 0 && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge 
+                variant="secondary" 
+                className="text-xs"
+                style={{
+                  backgroundColor: `${strategyTheme.colors.primary}30`,
+                  color: strategyTheme.colors.text
+                }}
+              >
                 {contentMessages.length} responses
               </Badge>
             )}
           </div>
         </div>
-        <p className="text-sm text-neutral-400 mb-2">{sequence.rationale}</p>
-        <div className="flex items-center gap-2 text-xs text-neutral-500">
-          <span>Focus: {sequence.research_focus}</span>
+        
+        {/* Strategic Methodology Description */}
+        <div className="mb-3">
+          <p 
+            className="text-sm mb-2 font-medium"
+            style={{ color: strategyTheme.colors.text }}
+          >
+            {strategyTheme.description}
+          </p>
+          <p className="text-xs text-neutral-400">
+            <strong>Methodology:</strong> {strategyTheme.methodology}
+          </p>
+        </div>
+        
+        {/* Strategic Characteristics */}
+        <div className="mb-3">
+          <div className="flex flex-wrap gap-1 mb-2">
+            {strategyTheme.characteristics.map((char, idx) => (
+              <span
+                key={idx}
+                className="text-xs px-2 py-1 rounded-full"
+                style={{
+                  backgroundColor: `${strategyTheme.colors.primary}25`,
+                  color: strategyTheme.colors.primary,
+                  border: `1px solid ${strategyTheme.colors.primary}50`
+                }}
+              >
+                {char}
+              </span>
+            ))}
+          </div>
+        </div>
+        
+        {/* Research Details */}
+        <div className="text-xs text-neutral-400 space-y-1">
+          <div>
+            <strong style={{ color: strategyTheme.colors.secondary }}>Focus:</strong> {sequence.research_focus}
+          </div>
+          <div>
+            <strong style={{ color: strategyTheme.colors.secondary }}>Approach:</strong> {strategyTheme.approach.focus}
+          </div>
           {sequence.agent_names.length > 0 && (
-            <>
-              <span>•</span>
-              <span>Agents: {sequence.agent_names.join(', ')}</span>
-            </>
+            <div>
+              <strong style={{ color: strategyTheme.colors.secondary }}>Agents:</strong> {sequence.agent_names.join(', ')}
+            </div>
           )}
         </div>
       </div>
 
       {/* Activity Timeline */}
       {activityEvents.length > 0 && (
-        <div className="bg-neutral-800 rounded-lg p-3">
+        <div 
+          className="rounded-lg p-3 border"
+          style={{
+            backgroundColor: `${strategyTheme.colors.background}10`,
+            borderColor: `${strategyTheme.colors.border}30`
+          }}
+        >
           <h4 className="text-sm font-medium text-white mb-2 flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-            Activity Timeline
+            <div 
+              className="w-2 h-2 rounded-full animate-pulse" 
+              style={{ backgroundColor: strategyTheme.colors.primary }}
+            />
+            <span style={{ color: strategyTheme.colors.primary }}>Activity Timeline</span>
           </h4>
           <ActivityTimeline
             processedEvents={activityEvents}
@@ -304,7 +456,14 @@ const SequenceTabContent: React.FC<SequenceTabContentProps> = React.memo(({
             const totalDelay = baseDelay + messageDelay;
             
             return (
-              <div key={message.message_id || msgIndex} className="bg-neutral-800 rounded-lg p-3">
+              <div 
+                key={message.message_id || msgIndex} 
+                className="rounded-lg p-3 border"
+                style={{
+                  backgroundColor: `${strategyTheme.colors.background}08`,
+                  borderColor: `${strategyTheme.colors.border}20`
+                }}
+              >
                 {typeof message.content === 'string' ? (
                   <TypedMarkdown 
                     components={mdComponents} 
@@ -319,10 +478,23 @@ const SequenceTabContent: React.FC<SequenceTabContentProps> = React.memo(({
                     {JSON.stringify(message.content, null, 2)}
                   </ReactMarkdown>
                 )}
-                <div className="mt-2 pt-2 border-t border-neutral-700 flex items-center justify-between text-xs text-neutral-500">
+                <div 
+                  className="mt-2 pt-2 border-t flex items-center justify-between text-xs"
+                  style={{ 
+                    borderColor: `${strategyTheme.colors.border}30`,
+                    color: strategyTheme.colors.secondary
+                  }}
+                >
                   <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
                   {message.current_agent && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge 
+                      variant="outline" 
+                      className="text-xs"
+                      style={{
+                        borderColor: strategyTheme.colors.primary,
+                        color: strategyTheme.colors.primary
+                      }}
+                    >
                       {message.current_agent}
                     </Badge>
                   )}
@@ -334,10 +506,19 @@ const SequenceTabContent: React.FC<SequenceTabContentProps> = React.memo(({
 
         {/* Loading indicator for active sequence */}
         {isLoading && isActive && contentMessages.length > 0 && (
-          <div className="bg-neutral-800 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-neutral-400 text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Generating more content...</span>
+          <div 
+            className="rounded-lg p-3 border"
+            style={{
+              backgroundColor: `${strategyTheme.colors.background}10`,
+              borderColor: `${strategyTheme.colors.border}30`
+            }}
+          >
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 
+                className="w-4 h-4 animate-spin" 
+                style={{ color: strategyTheme.colors.primary }}
+              />
+              <span style={{ color: strategyTheme.colors.text }}>Generating more content...</span>
             </div>
           </div>
         )}
@@ -358,26 +539,34 @@ const ParallelTabContainer: React.FC<ParallelTabContainerProps> = ({
   isLoading,
   className,
 }) => {
+  // Assign strategy themes to sequences
+  const sequencesWithThemes = useMemo(() => {
+    return sequences.map(sequence => ({
+      sequence,
+      strategyTheme: assignStrategyTheme(sequence)
+    }));
+  }, [sequences]);
+
   // Ensure we have a valid active tab
   const validActiveTabId = useMemo(() => {
-    if (sequences.find(s => s.sequence_id === activeTabId)) {
+    if (sequencesWithThemes.find(s => s.sequence.sequence_id === activeTabId)) {
       return activeTabId;
     }
-    return sequences.length > 0 ? sequences[0].sequence_id : '';
-  }, [activeTabId, sequences]);
+    return sequencesWithThemes.length > 0 ? sequencesWithThemes[0].sequence.sequence_id : '';
+  }, [activeTabId, sequencesWithThemes]);
 
   // Calculate typing status across all tabs for simultaneous animation feedback
   const typingStatus = useMemo(() => {
-    const totalTabs = sequences.length;
-    const typingTabs = sequences.filter(seq => 
-      getTabStatus(seq.sequence_id, parallelMessages) === 'typing'
+    const totalTabs = sequencesWithThemes.length;
+    const typingTabs = sequencesWithThemes.filter(({ sequence }) => 
+      getTabStatus(sequence.sequence_id, parallelMessages) === 'typing'
     ).length;
-    const completedTabs = sequences.filter(seq => 
-      getTabStatus(seq.sequence_id, parallelMessages) === 'completed'
+    const completedTabs = sequencesWithThemes.filter(({ sequence }) => 
+      getTabStatus(sequence.sequence_id, parallelMessages) === 'completed'
     ).length;
     
     return { totalTabs, typingTabs, completedTabs };
-  }, [sequences, parallelMessages]);
+  }, [sequencesWithThemes, parallelMessages]);
 
   // Memoize callback to prevent re-renders
   const memoizedOnTabChange = useCallback((tabId: string) => {
@@ -391,7 +580,7 @@ const ParallelTabContainer: React.FC<ParallelTabContainerProps> = ({
     }
   }, [validActiveTabId, activeTabId, memoizedOnTabChange]);
 
-  if (sequences.length === 0) {
+  if (sequencesWithThemes.length === 0) {
     return null;
   }
 
@@ -423,7 +612,7 @@ const ParallelTabContainer: React.FC<ParallelTabContainerProps> = ({
         )}
         
         <div className="flex items-center gap-1 p-2 overflow-x-auto">
-          {sequences.map((sequence, index) => (
+          {sequencesWithThemes.map(({ sequence, strategyTheme }, index) => (
             <TabButton
               key={sequence.sequence_id}
               sequence={sequence}
@@ -431,6 +620,7 @@ const ParallelTabContainer: React.FC<ParallelTabContainerProps> = ({
               isActive={validActiveTabId === sequence.sequence_id}
               status={getTabStatus(sequence.sequence_id, parallelMessages)}
               messageCount={parallelMessages[sequence.sequence_id]?.length || 0}
+              strategyTheme={strategyTheme}
               onClick={() => memoizedOnTabChange(sequence.sequence_id)}
             />
           ))}
@@ -450,19 +640,20 @@ const ParallelTabContainer: React.FC<ParallelTabContainerProps> = ({
       
       {/* Tab Content Area */}
       <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
-        {sequences.map((sequence) => (
+        {sequencesWithThemes.map(({ sequence, strategyTheme }) => (
           <SequenceTabContent
             key={sequence.sequence_id}
             sequence={sequence}
             messages={parallelMessages[sequence.sequence_id] || []}
             isActive={validActiveTabId === sequence.sequence_id}
             isLoading={isLoading}
-            index={sequences.findIndex(s => s.sequence_id === sequence.sequence_id)}
+            index={sequencesWithThemes.findIndex(s => s.sequence.sequence_id === sequence.sequence_id)}
+            strategyTheme={strategyTheme}
           />
         ))}
         
         {/* Empty state */}
-        {sequences.length === 0 && (
+        {sequencesWithThemes.length === 0 && (
           <div className="h-[300px] flex items-center justify-center text-neutral-500">
             <div className="text-center">
               <GitBranch className="w-8 h-8 mx-auto mb-2" />
