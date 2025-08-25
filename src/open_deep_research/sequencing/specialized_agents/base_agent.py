@@ -218,7 +218,7 @@ Remember: Your goal is to provide unique value through your specialized perspect
             model_name=self.configurable.executor_model,
             api_key=get_api_key_for_model(self.configurable.executor_model, self.config),
             max_tokens=self.configurable.executor_model_max_tokens,
-            tags=["langsmith:nostream"]
+            tags=["specialized_agent", "agent_execution"]
         )
         
         # Get available tools including think_tool

@@ -1,7 +1,12 @@
 """Main LangGraph implementation for the Deep Research agent."""
 
 import asyncio
-from typing import Literal
+import logging
+import time
+from typing import Literal, Optional, Dict, Any, List
+
+# Configure logger for this module
+logger = logging.getLogger(__name__)
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import (
@@ -15,10 +20,18 @@ from langchain_core.messages import (
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
+from langgraph.config import get_stream_writer
 
 from open_deep_research.configuration import (
     Configuration,
 )
+from open_deep_research.core.sequence_generator import (
+    UnifiedSequenceGenerator, 
+    SequenceGenerationInput, 
+    AgentSequence
+)
+from open_deep_research.supervisor.agent_capability_mapper import AgentCapabilityMapper
+from open_deep_research.sequencing.parallel_executor import ParallelSequenceExecutor
 from open_deep_research.prompts import (
     clarify_with_user_instructions,
     compress_research_simple_human_message,
@@ -32,21 +45,22 @@ from open_deep_research.state import (
     AgentInputState,
     AgentState,
     ClarifyWithUser,
-    ConductResearch,
-    ResearchComplete,
     ResearcherOutputState,
     ResearcherState,
     ResearchQuestion,
-    SupervisorState,
+    SequentialSupervisorState,
+    SequentialAgentState,
+    AgentExecutionReport,
+    RunningReport,
 )
 from open_deep_research.utils import (
     anthropic_websearch_called,
     clean_reasoning_model_output,
+    parse_reasoning_model_output,
     get_all_tools,
     get_api_key_for_model,
     get_model_config_for_provider,
     get_model_token_limit,
-    get_notes_from_tool_calls,
     get_today_str,
     is_token_limit_exceeded,
     openai_websearch_called,
@@ -64,7 +78,8 @@ def create_cleaned_structured_output(model, output_schema):
     """Create a structured output model that cleans reasoning model outputs.
     
     This wrapper handles QwQ and other reasoning models that output thinking tags
-    by cleaning the output before structured parsing.
+    by cleaning the output before structured parsing while preserving thinking content
+    for frontend display when needed.
     """
     from langchain_core.output_parsers import PydanticOutputParser
     from langchain_core.messages import AIMessage
@@ -80,8 +95,14 @@ def create_cleaned_structured_output(model, output_schema):
             # Get raw response from the configured model
             response = await self.model.ainvoke(messages)
             
-            # Clean the content to remove thinking tags
-            cleaned_content = clean_reasoning_model_output(response.content)
+            # Parse reasoning model output to extract thinking sections and clean content
+            parsed_output = parse_reasoning_model_output(response.content)
+            cleaned_content = parsed_output['clean_content']
+            
+            # Store thinking sections in response metadata for potential frontend use
+            if hasattr(response, 'response_metadata'):
+                response.response_metadata['thinking_sections'] = parsed_output['thinking_sections']
+                response.response_metadata['has_thinking'] = parsed_output['has_thinking']
             
             # Parse as JSON and create the structured output
             try:
@@ -123,6 +144,71 @@ def create_cleaned_structured_output(model, output_schema):
     
     return StructuredWrapper(model, output_schema)
 
+def create_enhanced_message_with_thinking(response, message_type: str = "ai", sequence_metadata: dict = None):
+    """Create enhanced message structure with preserved thinking sections.
+    
+    Args:
+        response: Model response with potential thinking content
+        message_type: Type of message (ai, human, tool, etc.)
+        sequence_metadata: Optional metadata for parallel sequence routing
+        
+    Returns:
+        Enhanced message with parsed thinking sections and metadata
+    """
+    from open_deep_research.state import EnhancedMessage, ParsedMessageContent, ThinkingSection
+    
+    # Parse the response content for thinking sections
+    if hasattr(response, 'content') and response.content:
+        parsed_output = parse_reasoning_model_output(response.content)
+        
+        # Convert thinking sections to Pydantic models
+        thinking_sections = [
+            ThinkingSection(**section) for section in parsed_output['thinking_sections']
+        ]
+        
+        # Create parsed content structure
+        parsed_content = ParsedMessageContent(
+            clean_content=parsed_output['clean_content'],
+            thinking_sections=thinking_sections,
+            has_thinking=parsed_output['has_thinking'],
+            original_content=parsed_output['original_content'],
+            section_count=parsed_output['section_count'],
+            total_thinking_chars=parsed_output['total_thinking_chars'],
+            sequence_id=sequence_metadata.get('sequence_id') if sequence_metadata else None,
+            sequence_name=sequence_metadata.get('sequence_name') if sequence_metadata else None,
+            tab_index=sequence_metadata.get('tab_index') if sequence_metadata else None,
+            is_parallel_content=bool(sequence_metadata)
+        )
+        
+        # Create enhanced message
+        enhanced_message = EnhancedMessage(
+            id=getattr(response, 'id', f"msg_{int(time.time()*1000)}"),
+            type=message_type,
+            content=parsed_content.clean_content,  # Use clean content for compatibility
+            parsed_content=parsed_content,
+            processing_metadata={
+                'model_used': getattr(response, 'response_metadata', {}).get('model_name', 'unknown'),
+                'processing_timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime()),
+                'has_thinking': parsed_content.has_thinking,
+                'thinking_sections_count': len(thinking_sections)
+            },
+            display_config={
+                'show_thinking_collapsed': True,
+                'enable_typing_animation': True,
+                'typing_speed': 20
+            }
+        )
+        
+        return enhanced_message
+    
+    # Fallback for responses without content
+    return EnhancedMessage(
+        id=f"msg_{int(time.time()*1000)}",
+        type=message_type,
+        content=str(response) if response else "",
+        processing_metadata={'processing_timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())}
+    )
+
 async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Command[Literal["write_research_brief", "__end__"]]:
     """Analyze user messages and ask clarifying questions if the research scope is unclear.
     
@@ -148,7 +234,7 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
         model_name=configurable.research_model,
         api_key=get_api_key_for_model(configurable.research_model, config),
         max_tokens=configurable.research_model_max_tokens,
-        tags=["langsmith:nostream"]
+        tags=["clarification", "user_interaction"]
     )
     
     # Configure model with cleaned structured output for reasoning models
@@ -178,19 +264,19 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
         )
 
 
-async def write_research_brief(state: AgentState, config: RunnableConfig) -> Command[Literal["research_supervisor"]]:
-    """Transform user messages into a structured research brief and initialize supervisor.
+async def write_research_brief(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """Transform user messages into a structured research brief for the supervisor.
     
     This function analyzes the user's messages and generates a focused research brief
-    that will guide the research supervisor. It also sets up the initial supervisor
-    context with appropriate prompts and instructions.
+    that will guide the research supervisor. The supervisor will handle sequence planning
+    and execution separately.
     
     Args:
         state: Current agent state containing user messages
         config: Runtime configuration with model settings
         
     Returns:
-        Command to proceed to research supervisor with initialized context
+        Dictionary with research brief and supervisor initialization
     """
     # Step 1: Set up the research model for structured output
     configurable = Configuration.from_runnable_config(config)
@@ -198,7 +284,7 @@ async def write_research_brief(state: AgentState, config: RunnableConfig) -> Com
         model_name=configurable.research_model,
         api_key=get_api_key_for_model(configurable.research_model, config),
         max_tokens=configurable.research_model_max_tokens,
-        tags=["langsmith:nostream"]
+        tags=["research_brief", "topic_analysis"]
     )
     
     # Configure model for structured research question generation with cleaning
@@ -220,211 +306,21 @@ async def write_research_brief(state: AgentState, config: RunnableConfig) -> Com
         max_researcher_iterations=configurable.max_researcher_iterations
     )
     
-    return Command(
-        goto="research_supervisor", 
-        update={
-            "research_brief": response.research_brief,
-            "supervisor_messages": {
-                "type": "override",
-                "value": [
-                    SystemMessage(content=supervisor_system_prompt),
-                    HumanMessage(content=response.research_brief)
-                ]
-            }
-        }
-    )
-
-
-async def supervisor(state: SupervisorState, config: RunnableConfig) -> Command[Literal["supervisor_tools"]]:
-    """Lead research supervisor that plans research strategy and delegates to researchers.
-    
-    The supervisor analyzes the research brief and decides how to break down the research
-    into manageable tasks. It can use think_tool for strategic planning, ConductResearch
-    to delegate tasks to sub-researchers, or ResearchComplete when satisfied with findings.
-    
-    Args:
-        state: Current supervisor state with messages and research context
-        config: Runtime configuration with model settings
-        
-    Returns:
-        Command to proceed to supervisor_tools for tool execution
-    """
-    # Step 1: Configure the supervisor model with available tools
-    configurable = Configuration.from_runnable_config(config)
-    research_model_config = get_model_config_for_provider(
-        model_name=configurable.research_model,
-        api_key=get_api_key_for_model(configurable.research_model, config),
-        max_tokens=configurable.research_model_max_tokens,
-        tags=["langsmith:nostream"]
-    )
-    
-    # Available tools: research delegation, completion signaling, and strategic thinking
-    lead_researcher_tools = [ConductResearch, ResearchComplete, think_tool]
-    
-    # Configure model with tools, retry logic, and model settings
-    research_model = (
-        configurable_model
-        .bind_tools(lead_researcher_tools)
-        .with_retry(stop_after_attempt=configurable.max_structured_output_retries)
-        .with_config(research_model_config)
-    )
-    
-    # Step 2: Generate supervisor response based on current context
-    supervisor_messages = state.get("supervisor_messages", [])
-    response = await research_model.ainvoke(supervisor_messages)
-    
-    # Clean reasoning model output to remove thinking tags
-    if hasattr(response, 'content') and response.content:
-        response.content = clean_reasoning_model_output(response.content)
-    
-    # Step 3: Update state and proceed to tool execution
-    return Command(
-        goto="supervisor_tools",
-        update={
-            "supervisor_messages": [response],
-            "research_iterations": state.get("research_iterations", 0) + 1
-        }
-    )
-
-async def supervisor_tools(state: SupervisorState, config: RunnableConfig) -> Command[Literal["supervisor", "__end__"]]:
-    """Execute tools called by the supervisor, including research delegation and strategic thinking.
-    
-    This function handles three types of supervisor tool calls:
-    1. think_tool - Strategic reflection that continues the conversation
-    2. ConductResearch - Delegates research tasks to sub-researchers
-    3. ResearchComplete - Signals completion of research phase
-    
-    Args:
-        state: Current supervisor state with messages and iteration count
-        config: Runtime configuration with research limits and model settings
-        
-    Returns:
-        Command to either continue supervision loop or end research phase
-    """
-    # Step 1: Extract current state and check exit conditions
-    configurable = Configuration.from_runnable_config(config)
-    supervisor_messages = state.get("supervisor_messages", [])
-    research_iterations = state.get("research_iterations", 0)
-    most_recent_message = supervisor_messages[-1]
-    
-    # Define exit criteria for research phase
-    exceeded_allowed_iterations = research_iterations > configurable.max_researcher_iterations
-    no_tool_calls = not most_recent_message.tool_calls
-    research_complete_tool_call = any(
-        tool_call["name"] == "ResearchComplete" 
-        for tool_call in most_recent_message.tool_calls
-    )
-    
-    # Exit if any termination condition is met
-    if exceeded_allowed_iterations or no_tool_calls or research_complete_tool_call:
-        return Command(
-            goto=END,
-            update={
-                "notes": get_notes_from_tool_calls(supervisor_messages),
-                "research_brief": state.get("research_brief", "")
-            }
-        )
-    
-    # Step 2: Process all tool calls together (both think_tool and ConductResearch)
-    all_tool_messages = []
-    update_payload = {"supervisor_messages": []}
-    
-    # Handle think_tool calls (strategic reflection)
-    think_tool_calls = [
-        tool_call for tool_call in most_recent_message.tool_calls 
-        if tool_call["name"] == "think_tool"
-    ]
-    
-    for tool_call in think_tool_calls:
-        reflection_content = tool_call["args"]["reflection"]
-        all_tool_messages.append(ToolMessage(
-            content=f"Reflection recorded: {reflection_content}",
-            name="think_tool",
-            tool_call_id=tool_call["id"]
-        ))
-    
-    # Handle ConductResearch calls (research delegation)
-    conduct_research_calls = [
-        tool_call for tool_call in most_recent_message.tool_calls 
-        if tool_call["name"] == "ConductResearch"
-    ]
-    
-    if conduct_research_calls:
-        try:
-            # Limit concurrent research units to prevent resource exhaustion
-            allowed_conduct_research_calls = conduct_research_calls[:configurable.max_concurrent_research_units]
-            overflow_conduct_research_calls = conduct_research_calls[configurable.max_concurrent_research_units:]
-            
-            # Execute research tasks in parallel
-            research_tasks = [
-                researcher_subgraph.ainvoke({
-                    "researcher_messages": [
-                        HumanMessage(content=tool_call["args"]["research_topic"])
-                    ],
-                    "research_topic": tool_call["args"]["research_topic"]
-                }, config) 
-                for tool_call in allowed_conduct_research_calls
+    # Return clean dictionary focused on research brief
+    return {
+        "research_brief": response.research_brief,
+        "supervisor_messages": {
+            "type": "override",
+            "value": [
+                SystemMessage(content=supervisor_system_prompt),
+                HumanMessage(content=response.research_brief)
             ]
-            
-            tool_results = await asyncio.gather(*research_tasks)
-            
-            # Create tool messages with research results
-            for observation, tool_call in zip(tool_results, allowed_conduct_research_calls):
-                all_tool_messages.append(ToolMessage(
-                    content=observation.get("compressed_research", "Error synthesizing research report: Maximum retries exceeded"),
-                    name=tool_call["name"],
-                    tool_call_id=tool_call["id"]
-                ))
-            
-            # Handle overflow research calls with error messages
-            for overflow_call in overflow_conduct_research_calls:
-                all_tool_messages.append(ToolMessage(
-                    content=f"Error: Did not run this research as you have already exceeded the maximum number of concurrent research units. Please try again with {configurable.max_concurrent_research_units} or fewer research units.",
-                    name="ConductResearch",
-                    tool_call_id=overflow_call["id"]
-                ))
-            
-            # Aggregate raw notes from all research results
-            raw_notes_concat = "\n".join([
-                "\n".join(observation.get("raw_notes", [])) 
-                for observation in tool_results
-            ])
-            
-            if raw_notes_concat:
-                update_payload["raw_notes"] = [raw_notes_concat]
-                
-        except Exception as e:
-            # Handle research execution errors
-            if is_token_limit_exceeded(e, configurable.research_model) or True:
-                # Token limit exceeded or other error - end research phase
-                return Command(
-                    goto=END,
-                    update={
-                        "notes": get_notes_from_tool_calls(supervisor_messages),
-                        "research_brief": state.get("research_brief", "")
-                    }
-                )
-    
-    # Step 3: Return command with all tool results
-    update_payload["supervisor_messages"] = all_tool_messages
-    return Command(
-        goto="supervisor",
-        update=update_payload
-    ) 
+        }
+    }
 
-# Supervisor Subgraph Construction
-# Creates the supervisor workflow that manages research delegation and coordination
-supervisor_builder = StateGraph(SupervisorState, config_schema=Configuration)
 
-# Add supervisor nodes for research management
-supervisor_builder.add_node("supervisor", supervisor)           # Main supervisor logic
-supervisor_builder.add_node("supervisor_tools", supervisor_tools)  # Tool execution handler
 
-# Define supervisor workflow edges
-supervisor_builder.add_edge(START, "supervisor")  # Entry point to supervisor
 
-# Compile supervisor subgraph for use in main workflow
-supervisor_subgraph = supervisor_builder.compile()
 
 async def researcher(state: ResearcherState, config: RunnableConfig) -> Command[Literal["researcher_tools"]]:
     """Individual researcher that conducts focused research on specific topics.
@@ -457,7 +353,7 @@ async def researcher(state: ResearcherState, config: RunnableConfig) -> Command[
         model_name=configurable.research_model,
         api_key=get_api_key_for_model(configurable.research_model, config),
         max_tokens=configurable.research_model_max_tokens,
-        tags=["langsmith:nostream"]
+        tags=["researcher", "tool_execution", "data_gathering"]
     )
     
     # Prepare system prompt with MCP context if available
@@ -478,17 +374,32 @@ async def researcher(state: ResearcherState, config: RunnableConfig) -> Command[
     messages = [SystemMessage(content=researcher_prompt)] + researcher_messages
     response = await research_model.ainvoke(messages)
     
-    # Clean reasoning model output to remove thinking tags
+    # Enhanced message processing with thinking section preservation
+    enhanced_message = None
     if hasattr(response, 'content') and response.content:
-        response.content = clean_reasoning_model_output(response.content)
+        # Parse for thinking sections while cleaning for processing
+        parsed_output = parse_reasoning_model_output(response.content)
+        
+        # Update response content to cleaned version for processing
+        response.content = parsed_output['clean_content']
+        
+        # Create enhanced message if thinking sections are present
+        if parsed_output['has_thinking']:
+            enhanced_message = create_enhanced_message_with_thinking(response, "ai")
     
     # Step 4: Update state and proceed to tool execution
+    update_dict = {
+        "researcher_messages": [response],
+        "tool_call_iterations": state.get("tool_call_iterations", 0) + 1
+    }
+    
+    # Add enhanced message if thinking content was found
+    if enhanced_message:
+        update_dict["enhanced_messages"] = [enhanced_message]
+    
     return Command(
         goto="researcher_tools",
-        update={
-            "researcher_messages": [response],
-            "tool_call_iterations": state.get("tool_call_iterations", 0) + 1
-        }
+        update=update_dict
     )
 
 # Tool Execution Helper Function
@@ -596,7 +507,7 @@ async def compress_research(state: ResearcherState, config: RunnableConfig):
         model_name=configurable.compression_model,
         api_key=get_api_key_for_model(configurable.compression_model, config),
         max_tokens=configurable.compression_model_max_tokens,
-        tags=["langsmith:nostream"]
+        tags=["compression", "synthesis", "report_generation"]
     )
     synthesizer_model = configurable_model.with_config(compression_model_config)
     
@@ -678,62 +589,115 @@ researcher_builder.add_edge("compress_research", END)      # Exit point after co
 researcher_subgraph = researcher_builder.compile()
 
 async def final_report_generation(state: AgentState, config: RunnableConfig):
-    """Generate the final comprehensive research report with retry logic for token limits.
+    """Generate the final comprehensive research report with LLM Judge evaluation.
     
-    This function takes all collected research findings and synthesizes them into a 
-    well-structured, comprehensive final report using the configured report generation model.
+    This enhanced function now includes LLM Judge evaluation of different sequence reports
+    to determine the best orchestration approach and provide scoring/ranking.
     
     Args:
         state: Agent state containing research findings and context
         config: Runtime configuration with model settings and API keys
         
     Returns:
-        Dictionary containing the final report and cleared state
+        Dictionary containing the final report, evaluation results, and cleared state
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Step 1: Extract research findings and prepare state cleanup
     notes = state.get("notes", [])
     cleared_state = {"notes": {"type": "override", "value": []}}
     findings = "\n".join(notes)
     
-    # Step 2: Configure the final report generation model
+    # Step 2: Extract sequence reports for evaluation
+    sequence_reports = await extract_sequence_reports_for_evaluation(state)
+    evaluation_result = None
+    
+    # Step 3: Run LLM Judge evaluation if we have multiple sequence reports
+    if len(sequence_reports) > 1:
+        logger.info(f"Running LLM Judge evaluation on {len(sequence_reports)} sequence reports")
+        try:
+            from open_deep_research.evaluation.llm_judge import LLMJudge
+            
+            judge = LLMJudge(config=config)
+            evaluation_result = await judge.evaluate_reports(
+                reports=sequence_reports,
+                research_topic=state.get("research_brief", "Unknown research topic"),
+                sequence_names=list(sequence_reports.keys())
+            )
+            
+            logger.info(f"LLM Judge evaluation completed. Winner: {evaluation_result.winning_sequence}")
+            
+        except Exception as e:
+            logger.error(f"LLM Judge evaluation failed: {e}")
+            evaluation_result = None
+    else:
+        logger.info("Skipping LLM Judge evaluation: insufficient sequence reports for comparison")
+    
+    # Step 4: Configure the final report generation model
     configurable = Configuration.from_runnable_config(config)
     writer_model_config = get_model_config_for_provider(
         model_name=configurable.final_report_model,
         api_key=get_api_key_for_model(configurable.final_report_model, config),
         max_tokens=configurable.final_report_model_max_tokens,
-        tags=["langsmith:nostream"]
+        tags=["final_report", "document_generation", "writing"]
     )
     
-    # Step 3: Attempt report generation with token limit retry logic
+    # Step 5: Generate enhanced report with evaluation insights if available
     max_retries = 3
     current_retry = 0
     findings_token_limit = None
     
     while current_retry <= max_retries:
         try:
-            # Create comprehensive prompt with all research context
-            final_report_prompt = final_report_generation_prompt.format(
-                research_brief=state.get("research_brief", ""),
-                messages=get_buffer_string(state.get("messages", [])),
+            # Create comprehensive prompt with evaluation insights
+            enhanced_prompt = create_enhanced_final_report_prompt(
+                state=state,
                 findings=findings,
-                date=get_today_str()
+                evaluation_result=evaluation_result
             )
             
             # Generate the final report
             final_report = await configurable_model.with_config(writer_model_config).ainvoke([
-                HumanMessage(content=final_report_prompt)
+                HumanMessage(content=enhanced_prompt)
             ])
             
             # Clean reasoning model output to remove thinking tags
             if hasattr(final_report, 'content') and final_report.content:
                 final_report.content = clean_reasoning_model_output(final_report.content)
             
-            # Return successful report generation
-            return {
+            # Step 6: Prepare enhanced result with evaluation data
+            result = {
                 "final_report": final_report.content, 
                 "messages": [final_report],
                 **cleared_state
             }
+            
+            # Add evaluation results to the state for frontend access
+            if evaluation_result:
+                result.update({
+                    "evaluation_result": {
+                        "winning_sequence": evaluation_result.winning_sequence,
+                        "winning_score": evaluation_result.winning_sequence_score,
+                        "sequence_rankings": [
+                            {
+                                "sequence_name": eval.sequence_name,
+                                "overall_score": eval.overall_score,
+                                "key_strengths": eval.key_strengths[:3],
+                                "executive_summary": eval.executive_summary
+                            }
+                            for eval in sorted(evaluation_result.individual_evaluations, 
+                                             key=lambda x: x.overall_score, reverse=True)
+                        ],
+                        "key_differentiators": evaluation_result.key_differentiators,
+                        "performance_gaps": evaluation_result.performance_gaps,
+                        "evaluation_model": evaluation_result.evaluation_model,
+                        "processing_time": evaluation_result.processing_time
+                    },
+                    "orchestration_insights": create_orchestration_insights(evaluation_result)
+                })
+            
+            return result
             
         except Exception as e:
             # Handle token limit exceeded errors with progressive truncation
@@ -766,7 +730,7 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
                     **cleared_state
                 }
     
-    # Step 4: Return failure result if all retries exhausted
+    # Step 7: Return failure result if all retries exhausted
     return {
         "final_report": "Error generating final report: Maximum retries exceeded",
         "messages": [AIMessage(content="Report generation failed after maximum retries")],
@@ -774,31 +738,405 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
     }
 
 
-async def sequence_optimization_router(state: AgentState, config: RunnableConfig) -> Command[Literal["sequence_research_supervisor", "research_supervisor"]]:
-    """Route to sequence optimization or standard supervisor based on configuration."""
-    configurable = Configuration.from_runnable_config(config)
+async def extract_sequence_reports_for_evaluation(state: AgentState) -> Dict[str, str]:
+    """Extract sequence reports from state for LLM Judge evaluation.
     
-    if getattr(configurable, 'enable_sequence_optimization', False):
-        try:
-            from open_deep_research.sequencing.integration import dynamic_sequence_research_supervisor as sequence_research_supervisor
-            return Command(goto="sequence_research_supervisor")
-        except ImportError:
-            # Fallback to standard supervisor if sequencing module not available
-            return Command(goto="research_supervisor")
-    else:
-        return Command(goto="research_supervisor")
+    This function examines both parallel and sequential execution results to extract
+    individual sequence reports that can be compared by the LLM Judge.
+    
+    Args:
+        state: Current agent state containing execution results
+        
+    Returns:
+        Dictionary mapping sequence names to their report content
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    sequence_reports = {}
+    
+    # Extract from parallel sequence results if available
+    parallel_results = state.get("parallel_sequence_results", {})
+    if parallel_results and "sequence_results" in parallel_results:
+        logger.info("Extracting reports from parallel sequence results")
+        
+        for seq_id, result in parallel_results["sequence_results"].items():
+            # Create comprehensive report from parallel execution
+            report_content = f"# Sequence Report: {seq_id}\n\n"
+            
+            # Add comprehensive findings
+            if result.get("comprehensive_findings"):
+                report_content += "## Key Findings\n"
+                for finding in result["comprehensive_findings"]:
+                    report_content += f"- {finding}\n"
+                report_content += "\n"
+            
+            # Add agent-specific insights
+            if result.get("agent_results"):
+                report_content += "## Agent Insights\n"
+                for agent_result in result["agent_results"]:
+                    agent_type = agent_result.get("agent_type", "unknown")
+                    insights = agent_result.get("key_insights", [])
+                    if insights:
+                        report_content += f"### {agent_type}\n"
+                        for insight in insights:
+                            report_content += f"- {insight}\n"
+                        report_content += "\n"
+            
+            # Add performance metrics
+            report_content += "## Performance Metrics\n"
+            report_content += f"- Duration: {result.get('total_duration', 0.0):.1f} seconds\n"
+            report_content += f"- Productivity Score: {result.get('productivity_score', 0.0):.2f}\n"
+            
+            sequence_reports[seq_id] = report_content
+    
+    # Extract from sequential execution results if no parallel results
+    elif state.get("running_report") or state.get("notes"):
+        logger.info("Extracting reports from sequential execution results")
+        
+        # Try to extract from running report first
+        running_report = state.get("running_report")
+        if running_report and hasattr(running_report, 'executive_summary'):
+            sequence_name = getattr(running_report, 'sequence_name', 'sequential_execution')
+            report_content = f"# Sequential Research Report: {sequence_name}\n\n"
+            
+            if running_report.executive_summary:
+                report_content += f"## Executive Summary\n{running_report.executive_summary}\n\n"
+            
+            if hasattr(running_report, 'detailed_findings') and running_report.detailed_findings:
+                report_content += "## Detailed Findings\n"
+                for finding in running_report.detailed_findings:
+                    report_content += f"- {finding}\n"
+                report_content += "\n"
+            
+            if hasattr(running_report, 'recommendations') and running_report.recommendations:
+                report_content += "## Recommendations\n"
+                for i, rec in enumerate(running_report.recommendations, 1):
+                    report_content += f"{i}. {rec}\n"
+            
+            sequence_reports[sequence_name] = report_content
+        
+        # Fallback to using notes and strategic sequences
+        else:
+            strategic_sequences = state.get("strategic_sequences", [])
+            notes = state.get("notes", [])
+            
+            if strategic_sequences:
+                # Create reports for each strategic sequence based on available notes
+                for i, sequence in enumerate(strategic_sequences[:min(3, len(strategic_sequences))]):
+                    sequence_name = sequence.sequence_name
+                    report_content = f"# Strategic Sequence Report: {sequence_name}\n\n"
+                    report_content += f"## Research Focus\n{sequence.research_focus}\n\n"
+                    report_content += f"## Approach\n{sequence.approach_description}\n\n"
+                    
+                    # Distribute notes across sequences (simplified approach)
+                    sequence_notes = notes[i::len(strategic_sequences)] if notes else []
+                    if sequence_notes:
+                        report_content += "## Research Findings\n"
+                        for note in sequence_notes:
+                            report_content += f"- {note}\n"
+                    
+                    sequence_reports[sequence_name] = report_content
+            else:
+                # Final fallback - create a single report from all available content
+                report_content = "# Research Report\n\n"
+                if notes:
+                    report_content += "## Research Findings\n"
+                    for note in notes:
+                        report_content += f"- {note}\n"
+                
+                sequence_reports["primary_research"] = report_content
+    
+    logger.info(f"Extracted {len(sequence_reports)} sequence reports for evaluation")
+    return sequence_reports
+
+
+def create_enhanced_final_report_prompt(
+    state: AgentState,
+    findings: str,
+    evaluation_result: Optional[Any] = None
+) -> str:
+    """Create an enhanced final report prompt including evaluation insights.
+    
+    Args:
+        state: Current agent state
+        findings: Research findings string
+        evaluation_result: LLM Judge evaluation results if available
+        
+    Returns:
+        Enhanced prompt string for final report generation
+    """
+    # Start with the base prompt
+    base_prompt = final_report_generation_prompt.format(
+        research_brief=state.get("research_brief", ""),
+        messages=get_buffer_string(state.get("messages", [])),
+        findings=findings,
+        date=get_today_str()
+    )
+    
+    # Add evaluation insights if available
+    if evaluation_result:
+        evaluation_section = "\n\n## ORCHESTRATION EVALUATION INSIGHTS\n\n"
+        evaluation_section += f"Based on LLM Judge evaluation of {len(evaluation_result.individual_evaluations)} research sequences:\n\n"
+        
+        # Add winning sequence information
+        evaluation_section += f"**Best Performing Approach:** {evaluation_result.winning_sequence}\n"
+        evaluation_section += f"**Score:** {evaluation_result.winning_sequence_score:.1f}/100\n\n"
+        
+        # Add key differentiators
+        if evaluation_result.key_differentiators:
+            evaluation_section += "**Key Success Factors:**\n"
+            for differentiator in evaluation_result.key_differentiators[:3]:
+                evaluation_section += f"- {differentiator}\n"
+            evaluation_section += "\n"
+        
+        # Add sequence comparison insights
+        if hasattr(evaluation_result, 'comparative_analysis'):
+            comp_analysis = evaluation_result.comparative_analysis
+            if hasattr(comp_analysis, 'best_sequence_reasoning'):
+                evaluation_section += f"**Why This Approach Worked Best:** {comp_analysis.best_sequence_reasoning}\n\n"
+        
+        # Add performance gaps information
+        if evaluation_result.performance_gaps:
+            evaluation_section += "**Performance Analysis:**\n"
+            for seq_name, gap in evaluation_result.performance_gaps.items():
+                evaluation_section += f"- {seq_name}: {gap:.1f} points behind best approach\n"
+        
+        evaluation_section += "\nPlease incorporate these orchestration insights into your final report, highlighting what made the research approach effective and providing guidance for future research on similar topics.\n"
+        
+        # Append to the base prompt
+        enhanced_prompt = base_prompt + evaluation_section
+        return enhanced_prompt
+    
+    return base_prompt
+
+
+def create_orchestration_insights(evaluation_result: Any) -> Dict[str, Any]:
+    """Create structured orchestration insights for frontend display.
+    
+    Args:
+        evaluation_result: LLM Judge evaluation results
+        
+    Returns:
+        Dictionary containing orchestration insights and recommendations
+    """
+    insights = {
+        "summary": f"Evaluated {len(evaluation_result.individual_evaluations)} research approaches",
+        "best_approach": {
+            "name": evaluation_result.winning_sequence,
+            "score": evaluation_result.winning_sequence_score,
+            "advantages": []
+        },
+        "key_learnings": [],
+        "recommendations": {},
+        "methodology_effectiveness": {}
+    }
+    
+    # Extract advantages of the winning sequence
+    winning_eval = next(
+        (eval for eval in evaluation_result.individual_evaluations 
+         if eval.sequence_name == evaluation_result.winning_sequence),
+        None
+    )
+    
+    if winning_eval:
+        insights["best_approach"]["advantages"] = winning_eval.key_strengths[:3]
+        insights["key_learnings"] = [
+            f"Superior {criterion}: {getattr(winning_eval, criterion).score:.1f}/10"
+            for criterion in ["completeness", "depth", "coherence", "innovation", "actionability"]
+            if getattr(winning_eval, criterion).score >= 8.0
+        ]
+    
+    # Add recommendations for each sequence
+    for eval in evaluation_result.individual_evaluations:
+        if eval.key_strengths:
+            insights["recommendations"][eval.sequence_name] = f"Best for: {eval.key_strengths[0]}"
+    
+    # Add methodology effectiveness insights
+    if hasattr(evaluation_result, 'comparative_analysis'):
+        comp_analysis = evaluation_result.comparative_analysis
+        if hasattr(comp_analysis, 'criteria_leaders'):
+            insights["methodology_effectiveness"] = comp_analysis.criteria_leaders
+    
+    return insights
+
+
+
+
+async def emit_sequences_to_frontend(
+    strategic_sequences: List[AgentSequence], 
+    research_topic: str, 
+    configurable: Configuration
+) -> None:
+    """Emit strategic sequences to frontend for real-time display."""
+    try:
+        # Create structured parallel sequence metadata
+        parallel_metadata = []
+        for i, seq in enumerate(strategic_sequences):
+            metadata = {
+                "sequence_id": f"seq_{i}_{int(time.time()*1000)}",
+                "sequence_name": seq.sequence_name,
+                "agent_names": seq.agent_names,
+                "rationale": seq.rationale,
+                "research_focus": getattr(seq, 'approach_description', seq.research_focus),
+                "confidence_score": seq.confidence_score,
+                "tab_index": i,
+                "status": "initializing",
+                "progress": 0.0,
+                "message_count": 0,
+                "created_at": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime()),
+                "approach_description": getattr(seq, 'approach_description', seq.research_focus),
+                "expected_outcomes": getattr(seq, 'expected_outcomes', [])
+            }
+            parallel_metadata.append(metadata)
+        
+        # Create structured supervisor announcement
+        from open_deep_research.state import SupervisorAnnouncement, ParallelSequenceMetadata
+        supervisor_announcement = SupervisorAnnouncement(
+            research_topic=research_topic,
+            sequences=[ParallelSequenceMetadata(**metadata) for metadata in parallel_metadata],
+            generation_model=configurable.research_model,
+            generation_timestamp=time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime()),
+            total_sequences=len(strategic_sequences),
+            recommended_sequence=0  # Default to first sequence
+        )
+        
+        # Prepare frontend-compatible format
+        frontend_sequences = {
+            "type": "sequences_generated",
+            "sequences": parallel_metadata,
+            "announcement": {
+                "title": supervisor_announcement.announcement_title,
+                "description": supervisor_announcement.announcement_description,
+                "research_topic": supervisor_announcement.research_topic,
+                "total_sequences": supervisor_announcement.total_sequences
+            }
+        }
+        
+        # Emit to frontend via stream writer
+        writer = get_stream_writer()
+        if writer:
+            writer(frontend_sequences)
+            logger.info(f"Successfully emitted {len(strategic_sequences)} sequences to frontend")
+        else:
+            logger.warning("Stream writer not available - frontend may not receive sequence data")
+            
+    except Exception as e:
+        logger.error(f"Failed to emit sequences to frontend: {e}")
 
 
 async def sequence_research_supervisor(state: AgentState, config: RunnableConfig) -> Command[Literal["final_report_generation"]]:
-    """Enhanced research supervisor with sequence optimization capability."""
+    """Always-parallel research supervisor with agent-aware sequence generation.
+    
+    This function:
+    1. Initializes agent registry to discover available specialized agents
+    2. Generates 3 strategic sequences based on discovered agents and research topic
+    3. Executes all 3 sequences in parallel, each as sequential agent workflows
+    4. Aggregates results from all parallel executions
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
-        from open_deep_research.sequencing.integration import dynamic_sequence_research_supervisor as seq_supervisor
-        result = await seq_supervisor(state, config)
-        return result
+        configurable = Configuration.from_runnable_config(config)
+        research_topic = state.get("research_brief", "")
+        
+        # Step 1: Initialize agent registry to discover available specialized agents
+        logger.info("Initializing agent registry to discover specialized agents")
+        agent_registry = await initialize_agent_registry(config)
+        
+        if not agent_registry or len(agent_registry.list_agents()) == 0:
+            logger.error("No agents found in registry - cannot generate strategic sequences")
+            return Command(
+                goto="final_report_generation",
+                update={
+                    "notes": ["Research failed: No agents available in registry. Please ensure agent definitions exist in .open_deep_research/agents/ directory."],
+                    "research_brief": research_topic,
+                    "final_report": "Research could not be completed: No specialized agents found in agent registry."
+                }
+            )
+        
+        logger.info(f"Found {len(agent_registry.list_agents())} specialized agents in registry")
+        
+        # Step 2: Generate 3 strategic sequences based on discovered agents
+        logger.info("Generating strategic research sequences based on available agents")
+        strategic_sequences = await generate_strategic_sequences(
+            research_topic=research_topic,
+            config=config
+        )
+        
+        if not strategic_sequences or len(strategic_sequences) == 0:
+            logger.error("Failed to generate strategic sequences - cannot proceed with research")
+            return Command(
+                goto="final_report_generation",
+                update={
+                    "notes": ["Research failed: Unable to generate strategic sequences from available agents."],
+                    "research_brief": research_topic,
+                    "final_report": "Research could not be completed: Failed to generate strategic research sequences."
+                }
+            )
+        
+        logger.info(f"Generated {len(strategic_sequences)} strategic sequences for parallel execution")
+        for i, seq in enumerate(strategic_sequences):
+            logger.info(f"Sequence {i+1}: '{seq.sequence_name}' using agents {seq.agent_names}")
+        
+        # Step 3: Emit sequences to frontend for real-time display
+        await emit_sequences_to_frontend(strategic_sequences, research_topic, configurable)
+        
+        # Step 4: Always execute all sequences in parallel
+        logger.info("Executing all strategic sequences in parallel")
+        try:
+            parallel_results = await execute_parallel_sequences(
+                strategic_sequences=strategic_sequences,
+                config=config,
+                research_topic=research_topic
+            )
+            
+            if parallel_results.get("success_rate", 0) > 0:
+                # Convert parallel results to AgentState format
+                result_state = convert_parallel_results_to_agent_state(parallel_results, state)
+                result_state["strategic_sequences"] = strategic_sequences  # Preserve sequences for frontend
+                
+                logger.info(f"Parallel execution completed with {parallel_results.get('success_rate', 0):.1f}% success rate")
+                
+                return Command(
+                    goto="final_report_generation",
+                    update=result_state
+                )
+            else:
+                logger.error("All parallel sequences failed - no research results available")
+                return Command(
+                    goto="final_report_generation",
+                    update={
+                        "notes": [f"All parallel sequences failed: {parallel_results.get('error_message', 'Unknown error')}"],
+                        "research_brief": research_topic,
+                        "final_report": "Research could not be completed: All strategic sequences failed to execute.",
+                        "strategic_sequences": strategic_sequences
+                    }
+                )
+                
+        except Exception as parallel_error:
+            logger.error(f"Parallel execution failed: {parallel_error}")
+            return Command(
+                goto="final_report_generation",
+                update={
+                    "notes": [f"Parallel execution failed: {str(parallel_error)}"],
+                    "research_brief": research_topic,
+                    "final_report": f"Research could not be completed due to parallel execution error: {str(parallel_error)}",
+                    "strategic_sequences": strategic_sequences
+                }
+            )
+        
     except Exception as e:
-        # Fallback to standard supervisor on error
-        print(f"Sequence optimization failed, falling back to standard supervisor: {e}")
-        return await supervisor_subgraph.ainvoke(state, config)
+        logger.error(f"Research supervisor failed: {e}", exc_info=True)
+        return Command(
+            goto="final_report_generation",
+            update={
+                "notes": [f"Research failed due to supervisor error: {str(e)}"],
+                "research_brief": state.get("research_brief", ""),
+                "final_report": f"Research could not be completed due to error: {str(e)}"
+            }
+        )
 
 
 # Main Deep Researcher Graph Construction
@@ -812,18 +1150,638 @@ deep_researcher_builder = StateGraph(
 # Add main workflow nodes for the complete research process
 deep_researcher_builder.add_node("clarify_with_user", clarify_with_user)           # User clarification phase
 deep_researcher_builder.add_node("write_research_brief", write_research_brief)     # Research planning phase
-deep_researcher_builder.add_node("sequence_optimization_router", sequence_optimization_router)  # Route to appropriate supervisor
-deep_researcher_builder.add_node("research_supervisor", supervisor_subgraph)       # Standard research execution phase
-deep_researcher_builder.add_node("sequence_research_supervisor", sequence_research_supervisor)  # Sequence optimization phase
+deep_researcher_builder.add_node("sequence_research_supervisor", sequence_research_supervisor)  # Sequential multi-agent execution
 deep_researcher_builder.add_node("final_report_generation", final_report_generation)  # Report generation phase
 
 # Define main workflow edges for sequential execution
 deep_researcher_builder.add_edge(START, "clarify_with_user")                       # Entry point
 # clarify_with_user routes automatically via Command to either write_research_brief or END
-deep_researcher_builder.add_edge("write_research_brief", "sequence_optimization_router")  # Route to appropriate supervisor
-deep_researcher_builder.add_edge("research_supervisor", "final_report_generation") # Standard research to report
-deep_researcher_builder.add_edge("sequence_research_supervisor", "final_report_generation") # Sequence research to report
+deep_researcher_builder.add_edge("write_research_brief", "sequence_research_supervisor")  # Flows to supervisor after emitting UpdateEvent
+deep_researcher_builder.add_edge("sequence_research_supervisor", "final_report_generation") # Sequential research to report
 deep_researcher_builder.add_edge("final_report_generation", END)                   # Final exit point
+
+async def execute_parallel_sequences(
+    strategic_sequences: List[AgentSequence],
+    config: RunnableConfig,
+    research_topic: str
+) -> Dict[str, Any]:
+    """Execute all strategic sequences in parallel using ParallelExecutor.
+    
+    Args:
+        strategic_sequences: List of LLM-generated strategic sequences
+        config: Runtime configuration with model settings
+        research_topic: The research topic to investigate
+        
+    Returns:
+        Dictionary containing results from all parallel sequence executions
+    """
+    import logging
+    from open_deep_research.sequencing.parallel_executor import parallel_executor_context
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Get configuration for parallel execution
+        configurable = Configuration.from_runnable_config(config)
+        
+        # Convert strategic sequences to the format expected by ParallelExecutor
+        sequence_patterns = []
+        for i, seq in enumerate(strategic_sequences):
+            # Create a simplified sequence pattern for the parallel executor
+            sequence_id = f"seq_{i}_{seq.sequence_name.lower().replace(' ', '_')}"
+            
+            # Convert to format expected by ParallelSequenceExecutor
+            # The ParallelExecutor expects string strategies, so we'll pass sequence names
+            sequence_patterns.append(seq.sequence_name)
+        
+        logger.info(f"Prepared {len(sequence_patterns)} sequences for parallel execution")
+        
+        # Use the parallel executor context manager
+        async with parallel_executor_context(
+            config=config,
+            max_concurrent=min(len(sequence_patterns), configurable.max_parallel_sequences),
+            timeout_seconds=configurable.parallel_execution_timeout
+        ) as executor:
+            
+            # Execute sequences in parallel with real-time streaming
+            result = await executor.execute_sequences_parallel(
+                research_topic=research_topic,
+                sequences=sequence_patterns[:configurable.max_parallel_sequences]  # Limit to max allowed
+            )
+            
+            logger.info(f"Parallel execution completed with {result.success_rate:.1f}% success rate")
+            
+            # Convert ParallelExecutionResult to a simpler format
+            parallel_results = {
+                "execution_id": result.execution_id,
+                "research_topic": result.research_topic,
+                "total_duration": result.total_duration,
+                "success_rate": result.success_rate,
+                "sequence_results": {},
+                "best_strategy": result.best_performing_strategy,
+                "unique_insights": result.unique_insights_across_sequences,
+                "failed_sequences": result.failed_sequences,
+                "error_summary": result.error_summary
+            }
+            
+            # Extract key findings from each successful sequence
+            for seq_id, seq_result in result.sequence_results.items():
+                parallel_results["sequence_results"][seq_id] = {
+                    "comprehensive_findings": seq_result.comprehensive_findings,
+                    "agent_results": [
+                        {
+                            "agent_type": agent_result.agent_type.value,
+                            "key_insights": agent_result.key_insights,
+                            "execution_duration": agent_result.execution_duration
+                        }
+                        for agent_result in seq_result.agent_results
+                    ],
+                    "total_duration": seq_result.total_duration,
+                    "productivity_score": seq_result.overall_productivity_metrics.tool_productivity
+                }
+            
+            return parallel_results
+            
+    except Exception as e:
+        logger.error(f"Parallel sequence execution failed: {e}")
+        # Return a minimal error result
+        return {
+            "execution_id": "failed",
+            "research_topic": research_topic,
+            "total_duration": 0.0,
+            "success_rate": 0.0,
+            "sequence_results": {},
+            "error_message": str(e),
+            "failed_sequences": list(range(len(strategic_sequences))),
+            "error_summary": {i: str(e) for i in range(len(strategic_sequences))}
+        }
+
+
+def convert_parallel_results_to_agent_state(
+    parallel_results: Dict[str, Any],
+    original_state: AgentState
+) -> Dict[str, Any]:
+    """Convert parallel execution results back to AgentState format.
+    
+    Args:
+        parallel_results: Results from parallel sequence execution
+        original_state: Original agent state for field preservation
+        
+    Returns:
+        Dictionary with AgentState compatible updates
+    """
+    # Aggregate results from all successful sequences
+    all_notes = []
+    all_raw_notes = []
+    final_reports = []
+    
+    # Handle successful sequence results
+    for sequence_id, result in parallel_results.get("sequence_results", {}).items():
+        # Add findings as notes
+        if result.get("comprehensive_findings"):
+            all_notes.extend([f"[{sequence_id}] {finding}" for finding in result["comprehensive_findings"]])
+        
+        # Add agent insights as raw notes
+        for agent_result in result.get("agent_results", []):
+            agent_type = agent_result.get("agent_type", "unknown")
+            insights = agent_result.get("key_insights", [])
+            if insights:
+                all_raw_notes.extend([f"[{sequence_id}-{agent_type}] {insight}" for insight in insights])
+        
+        # Create sequence-specific report section
+        if result.get("comprehensive_findings"):
+            sequence_report = f"## Sequence: {sequence_id}\n\n"
+            sequence_report += "\n".join([f"- {finding}" for finding in result["comprehensive_findings"]])
+            sequence_report += f"\n\n**Productivity Score:** {result.get('productivity_score', 0.0):.2f}\n"
+            sequence_report += f"**Duration:** {result.get('total_duration', 0.0):.1f} seconds\n"
+            final_reports.append(sequence_report)
+    
+    # Handle failed sequences
+    failed_sequences = parallel_results.get("failed_sequences", [])
+    error_summary = parallel_results.get("error_summary", {})
+    if failed_sequences:
+        all_notes.append(f"Failed sequences: {len(failed_sequences)} out of {len(failed_sequences) + len(parallel_results.get('sequence_results', {}))}")
+        for seq_id in failed_sequences:
+            error_msg = error_summary.get(seq_id, "Unknown error")
+            all_raw_notes.append(f"[FAILED-seq_{seq_id}] {error_msg}")
+    
+    # Create combined final report
+    if final_reports:
+        combined_report = f"# Parallel Research Execution Results\n\n"
+        combined_report += f"**Research Topic:** {parallel_results.get('research_topic', 'Unknown')}\n\n"
+        combined_report += f"**Execution Summary:**\n"
+        combined_report += f"- Success Rate: {parallel_results.get('success_rate', 0.0):.1f}%\n"
+        combined_report += f"- Total Duration: {parallel_results.get('total_duration', 0.0):.1f} seconds\n"
+        combined_report += f"- Best Strategy: {parallel_results.get('best_strategy', 'None')}\n\n"
+        
+        if parallel_results.get("unique_insights"):
+            combined_report += f"**Unique Insights Across All Sequences:**\n"
+            for insight in parallel_results["unique_insights"][:10]:  # Limit to top 10
+                combined_report += f"- {insight}\n"
+            combined_report += "\n"
+        
+        combined_report += "\n".join(final_reports)
+    else:
+        combined_report = f"Parallel research execution failed: {parallel_results.get('error_message', 'Unknown error')}"
+    
+    # Create AgentState update dictionary
+    result_state = {
+        "notes": {"type": "override", "value": all_notes},
+        "raw_notes": {"type": "override", "value": all_raw_notes},
+        "final_report": combined_report,
+        "research_brief": original_state.get("research_brief", ""),
+        "supervisor_messages": original_state.get("supervisor_messages", []),
+        "messages": original_state.get("messages", []),
+        "parallel_sequence_results": parallel_results,  # Store full parallel results for analysis
+        "strategic_sequences": original_state.get("strategic_sequences", [])  # Preserve sequences for frontend
+    }
+    
+    return result_state
+
+
+async def generate_strategic_sequences(
+    research_topic: str,
+    config: RunnableConfig
+) -> List[AgentSequence]:
+    """Generate strategic agent sequences using LLM reasoning.
+    
+    Args:
+        research_topic: The research topic to generate sequences for
+        config: Runtime configuration with model settings
+        
+    Returns:
+        List of strategic agent sequences, empty list if generation fails
+    """
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Initialize agent registry to get available agents
+        agent_registry = await initialize_agent_registry(config)
+        if not agent_registry:
+            logger.warning("No agent registry available for sequence generation, using fallback")
+            return await create_fallback_strategic_sequences([], research_topic)
+        
+        # Get agent capabilities
+        from open_deep_research.supervisor.agent_capability_mapper import AgentCapabilityMapper
+        capability_mapper = AgentCapabilityMapper(agent_registry)
+        agent_capabilities = capability_mapper.get_all_agent_capabilities()
+        
+        if not agent_capabilities:
+            logger.warning("No agent capabilities found for sequence generation, using fallback")
+            return await create_fallback_strategic_sequences([], research_topic)
+        
+        # Limit to first 10 agents for performance and LLM context window
+        if len(agent_capabilities) > 10:
+            agent_capabilities = agent_capabilities[:10]
+            logger.info(f"Limited agent capabilities to first 10 agents for LLM processing")
+        
+        # Initialize LLM sequence generator with configuration
+        configurable = Configuration.from_runnable_config(config)
+        model_config = get_model_config_for_provider(
+            model_name=configurable.research_model,
+            api_key=get_api_key_for_model(configurable.research_model, config),
+            max_tokens=configurable.research_model_max_tokens,
+            tags=["sequence_generation", "strategic_planning"]
+        )
+        
+        generator = UnifiedSequenceGenerator(agent_registry, model_config)
+        
+        # Prepare input for sequence generation
+        generation_input = SequenceGenerationInput(
+            research_topic=research_topic,
+            research_brief=None,  # Could be enhanced in future
+            available_agents=agent_capabilities,
+            research_type=None,  # Could be extracted from research topic in future
+            constraints={"max_agents_per_sequence": 4},
+            generation_mode="hybrid",  # Use hybrid mode for best results
+            num_sequences=3
+        )
+        
+        logger.info(f"Generating strategic sequences for research topic: {research_topic}")
+        
+        # Generate sequences asynchronously
+        result = await generator.generate_sequences(generation_input)
+        
+        if result.success and result.output.sequences:
+            logger.info(f"Successfully generated {len(result.output.sequences)} strategic sequences")
+            # Log details about each sequence
+            for i, seq in enumerate(result.output.sequences):
+                logger.info(f"Sequence {i+1}: {seq.sequence_name} - {seq.research_focus} (confidence: {seq.confidence_score:.2f})")
+            
+            # Identify recommended sequence
+            recommended_idx = getattr(result.output, 'recommended_sequence', 0)
+            if 0 <= recommended_idx < len(result.output.sequences):
+                logger.info(f"LLM recommends sequence {recommended_idx + 1}: {result.output.sequences[recommended_idx].sequence_name}")
+            
+            return result.output.sequences
+        else:
+            error_details = "Unknown error"
+            if hasattr(result, 'metadata') and hasattr(result.metadata, 'error_details'):
+                error_details = result.metadata.error_details
+            logger.warning(f"LLM sequence generation failed: {error_details}")
+            logger.info("Creating fallback sequences using agent capabilities")
+            return await create_fallback_strategic_sequences(agent_capabilities, research_topic)
+            
+    except Exception as e:
+        logger.error(f"Failed to generate strategic sequences: {e}")
+        # Always provide fallback sequences instead of empty list
+        try:
+            agent_registry = await initialize_agent_registry(config)
+            if agent_registry:
+                capability_mapper = AgentCapabilityMapper(agent_registry)
+                agent_capabilities = capability_mapper.get_all_agent_capabilities()
+                return await create_fallback_strategic_sequences(agent_capabilities, research_topic)
+        except:
+            pass
+        
+        # Final fallback with generic agents
+        return await create_fallback_strategic_sequences([], research_topic)
+
+
+async def create_fallback_strategic_sequences(
+    agent_capabilities: List[Any],
+    research_topic: str
+) -> List[AgentSequence]:
+    """Create fallback strategic sequences when LLM generation fails.
+    
+    Args:
+        agent_capabilities: List of available agent capabilities
+        research_topic: The research topic to create sequences for
+        
+    Returns:
+        List of fallback AgentSequence objects
+    """
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Creating fallback strategic sequences")
+    
+    # Extract agent names from capabilities
+    if agent_capabilities:
+        agent_names = [cap.name for cap in agent_capabilities]
+    else:
+        # Use default generic agent names
+        agent_names = ["general_researcher", "academic_analyst", "industry_expert"]
+    
+    sequences = []
+    
+    # Sequence 1: Linear approach with available agents
+    if agent_names:
+        seq1_agents = agent_names[:min(3, len(agent_names))]
+        sequences.append(AgentSequence(
+            sequence_name="Comprehensive Research Sequence",
+            agent_names=seq1_agents,
+            rationale="Sequential comprehensive research using available specialized agents to provide thorough coverage of the research topic",
+            approach_description="Linear progression through specialized research agents for complete topic coverage",
+            expected_outcomes=[
+                "Foundational research understanding",
+                "Specialized domain insights", 
+                "Comprehensive analysis and conclusions"
+            ],
+            confidence_score=0.8,
+            research_focus="Comprehensive research coverage"
+        ))
+    
+    # Sequence 2: Alternative perspective with different agent order
+    if len(agent_names) >= 2:
+        seq2_agents = agent_names[1:min(4, len(agent_names))]
+        if len(seq2_agents) == 0 and agent_names:
+            seq2_agents = [agent_names[0]]
+        
+        sequences.append(AgentSequence(
+            sequence_name="Alternative Analysis Sequence", 
+            agent_names=seq2_agents,
+            rationale="Alternative research approach using different agent perspectives to uncover varied insights and validate findings through diverse analytical lenses",
+            approach_description="Multi-perspective analysis with specialized agents for comprehensive viewpoint coverage",
+            expected_outcomes=[
+                "Alternative research perspectives",
+                "Cross-validation of findings",
+                "Diverse analytical insights"
+            ],
+            confidence_score=0.7,
+            research_focus="Multi-perspective analysis"
+        ))
+    
+    # Sequence 3: Focused deep-dive approach
+    if agent_names:
+        # Use first and last agents if available, or just first
+        seq3_agents = []
+        if len(agent_names) >= 1:
+            seq3_agents.append(agent_names[0])
+        if len(agent_names) >= 3:
+            seq3_agents.append(agent_names[-1])
+        
+        sequences.append(AgentSequence(
+            sequence_name="Focused Strategic Sequence",
+            agent_names=seq3_agents or [agent_names[0]] if agent_names else [],
+            rationale="Targeted research approach focusing on key specialized agents for deep domain expertise and strategic insights into the most critical aspects",
+            approach_description="Strategic focus on key research agents for maximum impact and targeted analysis",
+            expected_outcomes=[
+                "Deep domain expertise",
+                "Strategic research insights",
+                "High-impact findings"
+            ],
+            confidence_score=0.6,
+            research_focus="Strategic focused research"
+        ))
+    
+    # Ensure we have exactly 3 sequences - critical for supervisor functionality
+    while len(sequences) < 3:
+        fallback_agents = agent_names[:1] if agent_names else ["general_researcher", "academic_analyst", "industry_expert"]
+        sequences.append(AgentSequence(
+            sequence_name=f"Fallback Research Sequence {len(sequences) + 1}",
+            agent_names=fallback_agents if agent_names else [f"fallback_agent_{len(sequences) + 1}"],
+            rationale="Fallback research approach ensuring the supervisor always has sequences available for execution",
+            approach_description="Guaranteed research execution sequence with available or synthetic agents",
+            expected_outcomes=["Research execution", "Basic findings", "Supervisor functionality maintained"],
+            confidence_score=0.3,
+            research_focus="Fallback research execution"
+        ))
+    
+    # Guarantee we never return empty sequences
+    if not sequences:
+        sequences = [AgentSequence(
+            sequence_name="Emergency Research Sequence",
+            agent_names=["emergency_researcher"],
+            rationale="Emergency fallback to ensure supervisor can execute research",
+            approach_description="Emergency research execution when no other options available",
+            expected_outcomes=["Basic research attempt"],
+            confidence_score=0.1,
+            research_focus="Emergency research"
+        )]
+    
+    logger.info(f"Created {len(sequences)} fallback strategic sequences")
+    return sequences[:3]  # Ensure exactly 3 sequences
+
+
+async def initialize_agent_registry(config: RunnableConfig) -> Optional[Any]:
+    """Initialize agent registry with existing tools integration.
+    
+    Args:
+        config: Runtime configuration
+        
+    Returns:
+        Initialized AgentRegistry or None if initialization fails
+    """
+    import logging
+    from pathlib import Path
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from open_deep_research.agents.registry import AgentRegistry
+        
+        # Initialize registry with current project root
+        project_root = Path.cwd()
+        agent_registry = AgentRegistry(project_root=str(project_root))
+        
+        # Check if agents directory exists and has agents
+        stats = agent_registry.get_registry_stats()
+        logger.info(f"Agent registry initialized: {stats['total_agents']} agents found")
+        
+        if stats['total_agents'] == 0:
+            logger.warning("No agents found in registry")
+            # Create agent directories if they don't exist
+            agent_registry.create_agent_directories()
+            return None
+        
+        # Validate all agents
+        validation_results = agent_registry.validate_all_agents()
+        if validation_results:
+            logger.warning(f"Agent validation warnings: {validation_results}")
+        
+        # Get all available tools for inheritance
+        available_tools = await get_all_tools(config)
+        tool_names = [getattr(tool, 'name', 'unknown_tool') for tool in available_tools]
+        logger.info(f"Available tools for agents: {tool_names}")
+        
+        return agent_registry
+        
+    except ImportError as e:
+        logger.error(f"Failed to import AgentRegistry: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to initialize agent registry: {e}")
+        return None
+
+
+def convert_agent_state_to_sequential(state: AgentState, agent_registry: Any) -> SequentialSupervisorState:
+    """Convert AgentState to SequentialSupervisorState for sequential execution.
+    
+    Uses pre-generated strategic sequences if available, otherwise falls back to
+    LLM-based generation or simple agent selection.
+    
+    Args:
+        state: Current agent state with potential strategic_sequences
+        agent_registry: Initialized agent registry
+        
+    Returns:
+        SequentialSupervisorState with converted data and selected sequence
+    """
+    from datetime import datetime
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Get research topic from research brief
+    research_topic = state.get("research_brief", "")
+    if not research_topic:
+        # Fallback to extracting from messages
+        messages = state.get("messages", [])
+        if messages:
+            last_message = messages[-1]
+            if hasattr(last_message, 'content') and last_message.content:
+                research_topic = str(last_message.content)[:200]  # Limit length
+            else:
+                research_topic = "Unknown research topic"
+        else:
+            research_topic = "No research topic provided"
+    
+    # Check if we have pre-generated strategic sequences from LLM planning
+    strategic_sequences = state.get("strategic_sequences", [])
+    
+    if strategic_sequences:
+        # Use the recommended sequence (or first if no recommendation)
+        sequence_index = 0  # Default to first sequence
+        
+        # If sequences have recommended_sequence index from LLM generation, use it
+        if hasattr(strategic_sequences[0], 'recommended_sequence'):
+            try:
+                sequence_index = min(strategic_sequences[0].recommended_sequence, len(strategic_sequences) - 1)
+            except (AttributeError, TypeError):
+                sequence_index = 0
+        
+        selected_sequence = strategic_sequences[sequence_index]
+        planned_sequence = selected_sequence.agent_names
+        
+        logger.info(f"Using LLM-generated sequence '{selected_sequence.sequence_name}' with {len(planned_sequence)} agents")
+        logger.info(f"Sequence rationale: {selected_sequence.rationale}")
+        logger.info(f"Research focus: {selected_sequence.research_focus}")
+        logger.info(f"Confidence score: {selected_sequence.confidence_score:.2f}")
+        
+        # Initialize sequential state with LLM-generated sequence
+        sequential_state = SequentialSupervisorState(
+            messages=state.get("messages", []),
+            research_topic=research_topic,
+            research_brief=state.get("research_brief"),
+            strategic_sequences=strategic_sequences,  # Pass through all sequences
+            planned_sequence=planned_sequence,
+            executed_agents=[],
+            current_agent=None,
+            sequence_position=0,
+            sequence_start_time=datetime.now(),
+            handoff_ready=True,  # Ready to start first agent
+            # Backward compatibility fields
+            supervisor_messages=state.get("supervisor_messages", []),
+            notes=state.get("notes", []),
+            research_iterations=0,
+            raw_notes=state.get("raw_notes", [])
+        )
+        return sequential_state
+    
+    # Fallback: Initialize agent capability mapper for sequence generation
+    try:
+        capability_mapper = AgentCapabilityMapper(agent_registry)
+        agent_capabilities = capability_mapper.get_all_agent_capabilities()
+        
+        # Limit to first 10 agents for performance and LLM context window
+        if len(agent_capabilities) > 10:
+            agent_capabilities = agent_capabilities[:10]
+            logger.info(f"Limited agent capabilities to first 10 agents for LLM processing")
+        
+        # Use simple fallback sequence based on agent capabilities
+        planned_sequence = [cap.name for cap in agent_capabilities[:3]]
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize agent capability mapper: {e}")
+        # Final fallback to simple agent list
+        try:
+            available_agents = agent_registry.list_agents()[:3]
+            if not available_agents:
+                available_agents = []
+            planned_sequence = available_agents
+        except Exception:
+            planned_sequence = []
+    
+    logger.warning(f"Using fallback sequence with {len(planned_sequence)} agents")
+    
+    # Initialize sequential state with fallback sequence
+    sequential_state = SequentialSupervisorState(
+        messages=state.get("messages", []),
+        research_topic=research_topic,
+        research_brief=state.get("research_brief"),
+        strategic_sequences=None,  # No pre-generated sequences
+        planned_sequence=planned_sequence,
+        executed_agents=[],
+        current_agent=None,
+        sequence_position=0,
+        sequence_start_time=datetime.now(),
+        handoff_ready=True,  # Ready to start first agent
+        # Backward compatibility fields
+        supervisor_messages=state.get("supervisor_messages", []),
+        notes=state.get("notes", []),
+        research_iterations=0,
+        raw_notes=state.get("raw_notes", [])
+    )
+    
+    return sequential_state
+
+
+def convert_sequential_to_agent_state(sequential_result: SequentialSupervisorState, original_state: AgentState) -> Dict[str, Any]:
+    """Convert SequentialSupervisorState results back to AgentState format.
+    
+    Args:
+        sequential_result: Results from sequential supervisor execution
+        original_state: Original agent state for field preservation
+        
+    Returns:
+        Dictionary with AgentState compatible updates
+    """
+    # Extract notes from running report and agent insights
+    notes = sequential_result.get("notes", [])
+    
+    # Add insights from all executed agents
+    for agent_name, insights in sequential_result.get("agent_insights", {}).items():
+        notes.extend([f"{agent_name}: {insight}" for insight in insights])
+    
+    # Add agent execution summaries
+    if sequential_result.get("agent_reports"):
+        for agent_name, report in sequential_result["agent_reports"].items():
+            if hasattr(report, 'research_content'):
+                notes.append(f"{agent_name} Research: {report.research_content[:500]}...")
+    
+    # Extract final report content from running report
+    final_report_content = ""
+    if sequential_result.get("running_report"):
+        running_report = sequential_result["running_report"]
+        if hasattr(running_report, 'executive_summary'):
+            final_report_content = running_report.executive_summary
+        elif hasattr(running_report, 'detailed_findings'):
+            final_report_content = "\n".join(running_report.detailed_findings)
+    
+    # If no report content, use supervisor messages
+    if not final_report_content:
+        supervisor_messages = sequential_result.get("supervisor_messages", [])
+        if supervisor_messages:
+            last_message = supervisor_messages[-1]
+            if hasattr(last_message, 'content'):
+                final_report_content = last_message.content
+    
+    # Preserve original state fields and add sequential results
+    result_state = {
+        "notes": {"type": "override", "value": notes},
+        "research_brief": sequential_result.get("research_brief", original_state.get("research_brief", "")),
+        "raw_notes": {"type": "override", "value": sequential_result.get("raw_notes", [])},
+        "supervisor_messages": {"type": "override", "value": sequential_result.get("supervisor_messages", [])},
+        "final_report": final_report_content,
+        "messages": sequential_result.get("messages", original_state.get("messages", [])),
+        "strategic_sequences": original_state.get("strategic_sequences", [])  # Preserve sequences for frontend
+    }
+    
+    return result_state
+
 
 # Compile the complete deep researcher workflow
 deep_researcher = deep_researcher_builder.compile()

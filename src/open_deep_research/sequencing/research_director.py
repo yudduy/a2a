@@ -134,7 +134,7 @@ Provide scores and identify the key insight types present."""
                 model_name=self.configurable.planner_model,
                 api_key=get_api_key_for_model(self.configurable.planner_model, self.config),
                 max_tokens=self.configurable.planner_model_max_tokens,
-                tags=["langsmith:nostream"]
+                tags=["research_director", "sequence_planning"]
             )
             
             question_model = configurable_model.with_config(model_config)
@@ -371,7 +371,7 @@ Focus on generating questions that leverage technical trend analysis:
                 model_name=self.configurable.planner_model,
                 api_key=get_api_key_for_model(self.configurable.planner_model, self.config),
                 max_tokens=self.configurable.planner_model_max_tokens,
-                tags=["langsmith:nostream"]
+                tags=["research_director", "sequence_planning"]
             )
             
             analysis_model = configurable_model.with_config(model_config)

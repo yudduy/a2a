@@ -87,7 +87,7 @@ async def tavily_search(
         model=configurable.summarization_model,
         max_tokens=configurable.summarization_model_max_tokens,
         api_key=model_api_key,
-        tags=["langsmith:nostream"]
+        tags=["summarization", "content_processing"]
     )
     
     # Create a cleaned structured output wrapper for reasoning models
@@ -301,6 +301,12 @@ def clean_reasoning_model_output(content: str) -> str:
     """
     import re
     
+    # For UI display, we want to preserve thinking tags in a special format
+    # Check if this content should preserve thinking for frontend
+    if '<thinking>' in content or '<think>' in content:
+        # Return content with preserved thinking tags for frontend parsing
+        return content
+    
     # Remove thinking tags and their content from the beginning
     # Pattern matches: <think>...</think> or <think>...{content}
     think_pattern = r'<think>.*?</think>\s*'
@@ -320,6 +326,66 @@ def clean_reasoning_model_output(content: str) -> str:
     
     # If no JSON found, return the cleaned content stripped of whitespace
     return cleaned.strip()
+
+def parse_reasoning_model_output(content: str) -> dict:
+    """Parse reasoning model output preserving thinking sections for UI display.
+    
+    This function extracts thinking sections while also cleaning the content for
+    structured output parsing, enabling collapsible thinking sections in the frontend.
+    
+    Returns:
+        dict: {
+            'clean_content': str,           # Content without thinking tags
+            'thinking_sections': List[dict], # Preserved thinking sections with metadata
+            'has_thinking': bool,           # Whether thinking content was found
+            'original_content': str         # Original content for debugging
+        }
+    """
+    import re
+    
+    thinking_sections = []
+    
+    # Extract thinking sections with positions and metadata
+    # Support both <thinking> and <think> tags for broader compatibility
+    patterns = [
+        (r'<thinking>(.*?)</thinking>', 'thinking'),
+        (r'<think>(.*?)</think>', 'think')
+    ]
+    
+    for pattern, tag_type in patterns:
+        for match in re.finditer(pattern, content, re.DOTALL):
+            thinking_content = match.group(1).strip()
+            if thinking_content:  # Only add non-empty thinking sections
+                thinking_sections.append({
+                    'id': f'{tag_type}_{len(thinking_sections)}_{match.start()}',
+                    'content': thinking_content,
+                    'start_pos': match.start(),
+                    'end_pos': match.end(),
+                    'tag_type': tag_type,
+                    'char_length': len(thinking_content),
+                    'word_count': len(thinking_content.split()) if thinking_content else 0
+                })
+    
+    # Sort sections by position for correct ordering
+    thinking_sections.sort(key=lambda x: x['start_pos'])
+    
+    # Remove all thinking tags to get clean content
+    clean_content = content
+    for pattern, _ in patterns:
+        clean_content = re.sub(pattern, '', clean_content, flags=re.DOTALL)
+    
+    # Clean up extra whitespace
+    clean_content = re.sub(r'\n\s*\n\s*\n', '\n\n', clean_content)
+    clean_content = clean_content.strip()
+    
+    return {
+        'clean_content': clean_content,
+        'thinking_sections': thinking_sections,
+        'has_thinking': len(thinking_sections) > 0,
+        'original_content': content,
+        'section_count': len(thinking_sections),
+        'total_thinking_chars': sum(section['char_length'] for section in thinking_sections)
+    }
 
 
 ##########################
@@ -989,7 +1055,7 @@ def get_model_config_for_provider(model_name: str, api_key: str, max_tokens: int
     """
     config = {
         "api_key": api_key,
-        "tags": tags or ["langsmith:nostream"]
+        "tags": tags or ["model_config", "api_provider"]
     }
     
     if max_tokens:

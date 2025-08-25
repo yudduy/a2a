@@ -10,6 +10,7 @@ import { Client } from '@langchain/langgraph-sdk';
 import {
   SequenceState,
   SequenceStrategy,
+  LLMGeneratedSequence,
   ParallelSequencesState,
   RealTimeMetrics,
   UseParallelSequencesReturn,
@@ -39,34 +40,46 @@ const DEFAULT_CONFIG: Required<UseParallelSequencesConfig> = {
 };
 
 /**
- * Create initial sequence state
+ * Create initial sequence state for LLM-generated sequences
  */
-const createInitialSequenceState = (strategy: SequenceStrategy): SequenceState => ({
-  sequence_id: `seq_${strategy}_${Date.now()}`,
-  strategy,
+const createInitialSequenceState = (sequence: LLMGeneratedSequence): SequenceState => ({
+  sequence_id: sequence.sequence_id,
+  sequence: sequence,  // Store full LLM sequence instead of strategy enum
   progress: {
-    sequence_id: `seq_${strategy}_${Date.now()}`,
-    strategy,
+    sequence_id: sequence.sequence_id,
+    sequence_name: sequence.sequence_name,
     current_agent: null,
-    agent_index: 0,
+    current_agent_name: undefined,
+    agents_completed: 0,
+    total_agents: sequence.agent_names.length,
     completion_percentage: 0,
-    messages_received: 0,
+    estimated_time_remaining: undefined,
     last_activity: Date.now(),
-    status: 'pending',
+    status: 'initializing',
   },
   messages: [],
   current_agent: null,
+  current_agent_name: undefined,
   agent_transitions: [],
   errors: [],
   start_time: Date.now(),
   metrics: {
-    total_messages: 0,
-    processing_time: 0,
-    agent_calls: 0,
-    insights_generated: 0,
-    last_updated: Date.now(),
+    sequence_id: sequence.sequence_id,
+    message_count: 0,
+    research_duration: 0,
+    tokens_used: 0,
+    average_response_time: 0,
   },
+  status: 'initializing',
+  last_activity: new Date().toISOString(),
 });
+
+/**
+ * Initialize sequences from LLM-generated sequences
+ */
+export const initializeSequences = (llmSequences: LLMGeneratedSequence[]): SequenceState[] => {
+  return llmSequences.map(seq => createInitialSequenceState(seq));
+};
 
 /**
  * Production hook for parallel sequences management
@@ -100,12 +113,16 @@ export function useParallelSequences(
   const activeStreamsRef = useRef<Map<string, AbortController>>(new Map());
   const sequenceThreadsRef = useRef<Map<string, string>>(new Map());
 
+  // Additional state for new interface
+  const [activeSequenceId, setActiveSequenceId] = useState<string>('');
+  const [researchQuery, setResearchQuery] = useState<string>('');
+
   /**
    * Calculated progress state
    */
   const progress: ParallelSequencesState = useMemo(() => {
-    const activeSequences = sequences.filter(s => s.progress.status === 'active').length;
-    const completedSequences = sequences.filter(s => s.progress.status === 'completed').length;
+    const activeSequences = sequences.filter(s => s.status === 'running').length;
+    const completedSequences = sequences.filter(s => s.status === 'completed').length;
     const totalMessages = sequences.reduce((sum, s) => sum + s.messages.length, 0);
     const overallProgress = sequences.length > 0 
       ? sequences.reduce((sum, s) => sum + s.progress.completion_percentage, 0) / sequences.length 
@@ -122,16 +139,20 @@ export function useParallelSequences(
       completed_sequences: completedSequences,
       total_messages: totalMessages,
       start_time: earliestStartTime,
-      research_query: '', // This would be set when starting research
+      research_query: researchQuery,
+      activeSequenceId: activeSequenceId || (sequences.length > 0 ? sequences[0].sequence_id : ''),
+      executionStartTime: sequences.length > 0 ? new Date(earliestStartTime).toISOString() : undefined,
+      connectionState,
+      metrics,
       status: isLoading 
         ? 'running' 
-        : completedSequences === 3 
+        : completedSequences === sequences.length && sequences.length > 0
           ? 'completed' 
           : activeSequences > 0 
             ? 'running' 
             : 'initializing',
     };
-  }, [sequences, isLoading]);
+  }, [sequences, isLoading, activeSequenceId, researchQuery, connectionState, metrics]);
 
   /**
    * Initialize LangGraph client
@@ -147,18 +168,18 @@ export function useParallelSequences(
   }, [finalConfig.apiUrl]);
 
   /**
-   * Start a sequence stream for a specific strategy
+   * Start a sequence stream for LLM-generated sequence
    */
   const startSequenceStream = useCallback(async (
     query: string, 
-    strategy: SequenceStrategy, 
+    sequence: LLMGeneratedSequence, 
     index: number
   ): Promise<string> => {
     const client = initializeClient();
     
     // Create thread for this sequence
     const thread = await client.threads.create();
-    const sequenceId = `seq_${strategy}_${Date.now()}_${index}`;
+    const sequenceId = sequence.sequence_id;
     
     sequenceThreadsRef.current.set(sequenceId, thread.thread_id);
     
@@ -167,14 +188,20 @@ export function useParallelSequences(
     activeStreamsRef.current.set(sequenceId, abortController);
     
     // Initialize sequence state
-    const initialSequence = createInitialSequenceState(strategy);
-    initialSequence.sequence_id = sequenceId;
+    const initialSequence = createInitialSequenceState(sequence);
     
     setSequences(prev => [...prev, initialSequence]);
     
+    // Set first sequence as active if none selected
+    if (!activeSequenceId && index === 0) {
+      setActiveSequenceId(sequenceId);
+    }
+    
     // Start streaming directly to the graph
     try {
-      console.log(`Starting stream for sequence ${sequenceId} with strategy ${strategy}`);
+      if (import.meta.env.DEV) {
+        console.log(`Starting stream for sequence ${sequenceId} (${sequence.sequence_name})`);
+      }
       
       const stream = client.runs.stream(
         thread.thread_id,
@@ -182,10 +209,12 @@ export function useParallelSequences(
         {
           input: { 
             messages: [{ role: "human", content: query }],
-            // Add sequence-specific metadata if needed
+            // Add sequence-specific metadata
             config: {
-              sequence_strategy: strategy,
-              sequence_id: sequenceId
+              sequence_id: sequenceId,
+              sequence_name: sequence.sequence_name,
+              agent_names: sequence.agent_names,
+              research_focus: sequence.research_focus
             }
           },
           signal: abortController.signal,
@@ -193,10 +222,12 @@ export function useParallelSequences(
       );
 
       // Process stream in background
-      processSequenceStream(stream, sequenceId, strategy, index);
+      processSequenceStream(stream, sequenceId, sequence, index);
       
     } catch (error) {
-      console.error(`Failed to start stream for sequence ${sequenceId}:`, error);
+      if (import.meta.env.DEV) {
+        console.error(`Failed to start stream for sequence ${sequenceId}:`, error);
+      }
       handleError({
         error_id: `stream_start_${sequenceId}`,
         error_type: 'connection',
@@ -208,7 +239,7 @@ export function useParallelSequences(
     }
     
     return sequenceId;
-  }, [finalConfig.assistantId, initializeClient]);
+  }, [finalConfig.assistantId, initializeClient, activeSequenceId]);
 
   /**
    * Handle incoming WebSocket message
@@ -219,8 +250,8 @@ export function useParallelSequences(
         const updatedMessages = [...seq.messages, message];
         const updatedMetrics: SequenceMetrics = {
           ...seq.metrics,
-          total_messages: updatedMessages.length,
-          last_updated: Date.now(),
+          message_count: updatedMessages.length,
+          research_duration: Date.now() - seq.start_time,
         };
 
         // Update progress based on message type
@@ -230,18 +261,23 @@ export function useParallelSequences(
           case 'progress':
             updatedProgress = {
               ...updatedProgress,
-              messages_received: updatedProgress.messages_received + 1,
+              messages_received: (updatedProgress.messages_received || 0) + 1,
               last_activity: Date.now(),
             };
             break;
           
           case 'agent_transition':
-            if (message.agent_type) {
+            if (message.current_agent || message.agent_type) {
+              const agentName = message.current_agent || message.agent_type;
+              const totalAgents = seq.sequence?.agent_names.length || 3;
+              const agentsCompleted = Math.min(updatedProgress.agents_completed + 1, totalAgents);
+              
               updatedProgress = {
                 ...updatedProgress,
-                current_agent: message.agent_type,
-                agent_index: Math.min(updatedProgress.agent_index + 1, 2),
-                completion_percentage: Math.min((updatedProgress.agent_index + 1) * 33.33, 100),
+                current_agent: message.agent_type || null,
+                current_agent_name: agentName,
+                agents_completed: agentsCompleted,
+                completion_percentage: Math.min((agentsCompleted / totalAgents) * 100, 100),
               };
             }
             break;
@@ -268,6 +304,8 @@ export function useParallelSequences(
           progress: updatedProgress,
           metrics: updatedMetrics,
           current_agent: updatedProgress.current_agent,
+          current_agent_name: updatedProgress.current_agent_name,
+          last_activity: new Date().toISOString(),
         };
       }
       return seq;
@@ -307,16 +345,23 @@ export function useParallelSequences(
   const processSequenceStream = useCallback(async (
     stream: any,
     sequenceId: string,
-    strategy: SequenceStrategy,
+    sequence: LLMGeneratedSequence,
     index: number
   ) => {
     try {
+      // Update sequence status to running
+      setSequences(prev => prev.map(seq => 
+        seq.sequence_id === sequenceId 
+          ? { ...seq, status: 'running' }
+          : seq
+      ));
+
       for await (const chunk of stream) {
         // Convert LangGraph chunk to our message format
         const routedMessage: RoutedMessage = {
           message_id: `msg_${sequenceId}_${Date.now()}`,
           sequence_id: sequenceId,
-          sequence_strategy: strategy,
+          sequence_name: sequence.sequence_name,
           message_type: 'progress',
           timestamp: Date.now(),
           content: chunk.data || chunk,
@@ -335,9 +380,25 @@ export function useParallelSequences(
 
         handleIncomingMessage(routedMessage);
       }
+
+      // Mark sequence as completed
+      setSequences(prev => prev.map(seq => 
+        seq.sequence_id === sequenceId 
+          ? { ...seq, status: 'completed', end_time: Date.now() }
+          : seq
+      ));
+
     } catch (error) {
       if ((error as any)?.name !== 'AbortError') {
         console.error(`Stream processing error for sequence ${sequenceId}:`, error);
+        
+        // Mark sequence as failed
+        setSequences(prev => prev.map(seq => 
+          seq.sequence_id === sequenceId 
+            ? { ...seq, status: 'failed' }
+            : seq
+        ));
+
         handleError({
           error_id: `stream_error_${sequenceId}`,
           error_type: 'processing',
@@ -351,9 +412,10 @@ export function useParallelSequences(
   }, [handleIncomingMessage, handleError]);
 
   /**
-   * Start parallel research sequences
+   * Start parallel research sequences with LLM-generated sequences
+   * Enhanced for in-place tabs support
    */
-  const start = useCallback(async (query: string) => {
+  const start = useCallback(async (query: string, llmSequences?: LLMGeneratedSequence[]) => {
     if (!query.trim()) {
       throw new Error('Research query is required');
     }
@@ -362,21 +424,47 @@ export function useParallelSequences(
       setIsLoading(true);
       setError(null);
       setSequences([]);
+      setResearchQuery(query);
       
       // Clear any existing streams
       activeStreamsRef.current.forEach(controller => controller.abort());
       activeStreamsRef.current.clear();
       sequenceThreadsRef.current.clear();
 
-      // Start all three sequences in parallel
-      const strategies = [
-        SequenceStrategy.THEORY_FIRST,
-        SequenceStrategy.MARKET_FIRST,
-        SequenceStrategy.FUTURE_BACK,
-      ];
+      // Use provided LLM sequences (prioritized for in-place tabs) or fallback to legacy strategies
+      let sequencesToUse: LLMGeneratedSequence[];
+      
+      if (llmSequences && llmSequences.length > 0) {
+        sequencesToUse = llmSequences;
+        if (import.meta.env.DEV) {
+          console.log('Using provided LLM sequences for in-place tabs:', sequencesToUse);
+        }
+      } else {
+        // Fallback to legacy strategies (for backward compatibility)
+        const legacyStrategies = [
+          SequenceStrategy.THEORY_FIRST,
+          SequenceStrategy.MARKET_FIRST,
+          SequenceStrategy.FUTURE_BACK,
+        ];
+        
+        sequencesToUse = legacyStrategies.map((strategy, index) => ({
+          sequence_id: `seq_${strategy}_${Date.now()}_${index}`,
+          sequence_name: strategy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          agent_names: ['research_agent', 'analysis_agent', 'synthesis_agent'],
+          rationale: `Legacy ${strategy} strategy`,
+          research_focus: `${strategy} approach`,
+          confidence_score: 0.7,
+          approach_description: `Traditional ${strategy} research approach`,
+          expected_outcomes: ['Research insights', 'Analysis results'],
+          created_at: new Date().toISOString(),
+        }));
+        if (import.meta.env.DEV) {
+          console.log('Using legacy sequences as fallback:', sequencesToUse);
+        }
+      }
 
-      const sequencePromises = strategies.map((strategy, index) => 
-        startSequenceStream(query, strategy, index)
+      const sequencePromises = sequencesToUse.map((sequence, index) => 
+        startSequenceStream(query, sequence, index)
       );
 
       const sequenceIds = await Promise.all(sequencePromises);
@@ -388,8 +476,15 @@ export function useParallelSequences(
       });
       setSubscriptionStatus(initialSubscriptionStatus);
 
+      if (import.meta.env.DEV) {
+        console.log(`Started ${sequenceIds.length} parallel sequences for in-place tabs`);
+      }
+
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to start parallel sequences');
+      if (import.meta.env.DEV) {
+        console.error('Failed to start parallel sequences:', error);
+      }
       setError(error);
       setIsLoading(false);
       throw error;
@@ -421,6 +516,16 @@ export function useParallelSequences(
       setTimeout(() => start(lastQuery), 1000);
     }
   }, [progress.research_query, stop, start]);
+
+  /**
+   * Change active sequence being viewed (enhanced for in-place tabs)
+   */
+  const changeActiveSequence = useCallback((sequenceId: string) => {
+    if (import.meta.env.DEV) {
+      console.log(`Changing active sequence to: ${sequenceId}`);
+    }
+    setActiveSequenceId(sequenceId);
+  }, []);
 
   /**
    * Pause specific sequence
@@ -472,15 +577,35 @@ export function useParallelSequences(
 
   /**
    * Mark loading as false when all sequences complete or fail
+   * Enhanced for variable sequence counts (not just 3)
    */
   useEffect(() => {
-    const allSequencesCompleted = sequences.length === 3 && 
+    const hasSequences = sequences.length > 0;
+    const allSequencesCompleted = hasSequences && 
       sequences.every(seq => seq.progress.status === 'completed' || seq.progress.status === 'failed');
     
     if (allSequencesCompleted && isLoading) {
+      if (import.meta.env.DEV) {
+        console.log(`All ${sequences.length} sequences completed, stopping loading`);
+      }
       setIsLoading(false);
     }
   }, [sequences, isLoading]);
+
+  /**
+   * Log sequence state changes for debugging in-place tabs
+   */
+  useEffect(() => {
+    if (sequences.length > 0) {
+      const activeCount = sequences.filter(s => s.status === 'running').length;
+      const completedCount = sequences.filter(s => s.status === 'completed').length;
+      const failedCount = sequences.filter(s => s.status === 'failed').length;
+      
+      if (import.meta.env.DEV) {
+        console.log(`Sequence status update: ${activeCount} active, ${completedCount} completed, ${failedCount} failed`);
+      }
+    }
+  }, [sequences]);
 
   return {
     // State
@@ -498,6 +623,7 @@ export function useParallelSequences(
     // Sequence-specific controls
     pauseSequence,
     resumeSequence,
+    changeActiveSequence,
     
     // Message access
     getSequenceMessages,

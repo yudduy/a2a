@@ -44,6 +44,7 @@ import { SequenceChat } from './SequenceChat';
 import { useParallelSequences } from '@/hooks/useParallelSequences';
 import { 
   SequenceStrategy,
+  LLMGeneratedSequence,
   ConnectionState,
   SequenceState,
   UseParallelSequencesReturn

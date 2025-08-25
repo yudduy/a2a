@@ -1,11 +1,7 @@
 {
     "dockerfile_lines": [],
     "graphs": {
-      "Deep Researcher": "./src/open_deep_research/deep_researcher.py:deep_researcher",
-      "Theory First Sequence": "./src/open_deep_research/sequencing/langgraph_wrapper.py:theory_first_graph",
-      "Market First Sequence": "./src/open_deep_research/sequencing/langgraph_wrapper.py:market_first_graph",
-      "Future Back Sequence": "./src/open_deep_research/sequencing/langgraph_wrapper.py:future_back_graph",
-      "Delegation Comparison": "./src/open_deep_research/sequencing/langgraph_wrapper.py:comparison_graph"
+      "Deep Researcher": "./src/open_deep_research/deep_researcher.py:deep_researcher"
     },
     "python_version": "3.11",
     "env": "./.env",

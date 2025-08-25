@@ -69,8 +69,8 @@ export function ActivityTimeline({
   }, [isLoading, processedEvents]);
 
   return (
-    <Card className="border-none rounded-lg bg-neutral-700 max-h-96 w-full min-w-0">
-      <CardHeader>
+    <Card className="border-none rounded-lg bg-neutral-700 w-full min-w-0 overflow-hidden">
+      <CardHeader className="pb-3">
         <CardDescription className="flex items-center justify-between min-w-0">
           <button
             type="button"
@@ -89,8 +89,9 @@ export function ActivityTimeline({
         </CardDescription>
       </CardHeader>
       {!isTimelineCollapsed && (
-        <ScrollArea className="max-h-96 overflow-y-auto" id="timeline-content">
-          <CardContent>
+        <div className="max-h-80 overflow-hidden" id="timeline-content">
+          <ScrollArea className="h-full max-h-80">
+            <CardContent>
             {isLoading && processedEvents.length === 0 && (
               <div className="relative pl-8 pb-4 min-w-0">
                 <div className="absolute left-3 top-3.5 h-full w-0.5 bg-neutral-800" />
@@ -115,13 +116,13 @@ export function ActivityTimeline({
                     <div className="absolute left-0.5 top-2 h-6 w-6 rounded-full bg-neutral-600 flex items-center justify-center ring-4 ring-neutral-700">
                       {getEventIcon(eventItem.title, index) || <Activity className="h-4 w-4 text-neutral-400" />}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm text-neutral-200 font-medium mb-0.5 truncate">
                         {eventItem.title}
                       </p>
-                      <p className="text-xs text-neutral-300 leading-relaxed break-words overflow-wrap-anywhere">
+                      <p className="text-xs text-neutral-300 leading-relaxed break-words hyphens-auto max-w-full">
                         {typeof eventItem.data === 'string'
-                          ? eventItem.data
+                          ? eventItem.data.length > 200 ? `${eventItem.data.substring(0, 200)}...` : eventItem.data
                           : Array.isArray(eventItem.data)
                           ? (eventItem.data as string[]).join(', ')
                           : JSON.stringify(eventItem.data)}
@@ -151,8 +152,9 @@ export function ActivityTimeline({
                 </p>
               </div>
             ) : null}
-          </CardContent>
-        </ScrollArea>
+            </CardContent>
+          </ScrollArea>
+        </div>
       )}
     </Card>
   );

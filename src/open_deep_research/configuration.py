@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, List, Optional
 
 from langchain_core.runnables import RunnableConfig
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 class SearchAPI(Enum):
@@ -15,6 +15,19 @@ class SearchAPI(Enum):
     OPENAI = "openai"
     TAVILY = "tavily"
     NONE = "none"
+
+class AgentFileFormat(Enum):
+    """Enumeration of supported agent file formats."""
+    
+    MARKDOWN = "markdown"
+    YAML = "yaml"
+
+class ReportUpdateFrequency(Enum):
+    """Enumeration of report update frequencies."""
+    
+    AFTER_EACH_AGENT = "after_each_agent"
+    AFTER_SEQUENCE = "after_sequence"
+    ON_DEMAND = "on_demand"
 
 class MCPConfig(BaseModel):
     """Configuration for Model Context Protocol (MCP) servers."""
@@ -285,11 +298,11 @@ class Configuration(BaseModel):
         }
     )
     enable_sequence_optimization: bool = Field(
-        default=False,
+        default=True,
         metadata={
             "x_oap_ui_config": {
                 "type": "boolean",
-                "default": False,
+                "default": True,
                 "description": "Enable sequence optimization and parallel research execution. When disabled, uses standard single-path research."
             }
         }
@@ -310,12 +323,12 @@ class Configuration(BaseModel):
     
     # Parallel Execution Configuration
     enable_parallel_execution: bool = Field(
-        default=False,
+        default=True,
         metadata={
             "x_oap_ui_config": {
                 "type": "boolean",
-                "default": False,
-                "description": "Enable parallel execution of multiple sequence strategies simultaneously with real-time streaming"
+                "default": True,
+                "description": "Execute all 3 LLM-generated sequences in parallel for comprehensive research coverage"
             }
         }
     )
@@ -354,6 +367,246 @@ class Configuration(BaseModel):
                 "max": 5,
                 "step": 1,
                 "description": "Number of retry attempts for failed sequences in parallel execution"
+            }
+        }
+    )
+    
+    # Sequential Supervisor Configuration
+    enable_sequential_supervisor: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable the sequential multi-agent supervisor system for orchestrated agent execution"
+            }
+        }
+    )
+    use_shared_state: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable shared state management across sequential agents for context passing"
+            }
+        }
+    )
+    automatic_handoffs: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable automatic agent handoffs based on completion detection"
+            }
+        }
+    )
+    allow_dynamic_modification: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Allow dynamic modification of agent sequences during execution"
+            }
+        }
+    )
+    max_agents_per_sequence: int = Field(
+        default=5,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "slider",
+                "default": 5,
+                "min": 2,
+                "max": 10,
+                "step": 1,
+                "description": "Maximum number of agents allowed in a single sequence"
+            }
+        }
+    )
+    modification_threshold: float = Field(
+        default=0.7,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 0.7,
+                "min": 0.1,
+                "max": 1.0,
+                "step": 0.1,
+                "description": "Confidence threshold for triggering dynamic sequence modifications (0-1)"
+            }
+        }
+    )
+    
+    # Agent Registry Configuration
+    project_agents_dir: str = Field(
+        default=".open_deep_research/agents",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": ".open_deep_research/agents",
+                "description": "Directory path for project-specific agent definitions (relative to project root)"
+            }
+        }
+    )
+    user_agents_dir: str = Field(
+        default="~/.open_deep_research/agents",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "~/.open_deep_research/agents",
+                "description": "Directory path for user-global agent definitions (supports ~ expansion)"
+            }
+        }
+    )
+    agent_file_format: AgentFileFormat = Field(
+        default=AgentFileFormat.MARKDOWN,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": "markdown",
+                "description": "File format for agent definitions",
+                "options": [
+                    {"label": "Markdown (.md)", "value": AgentFileFormat.MARKDOWN.value},
+                    {"label": "YAML (.yml/.yaml)", "value": AgentFileFormat.YAML.value}
+                ]
+            }
+        }
+    )
+    inherit_all_tools: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether agents should inherit all available tools by default"
+            }
+        }
+    )
+    
+    # Completion Detection Configuration
+    use_automatic_completion: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable automatic completion detection for agent handoffs"
+            }
+        }
+    )
+    completion_confidence_threshold: float = Field(
+        default=0.6,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 0.6,
+                "min": 0.1,
+                "max": 1.0,
+                "step": 0.1,
+                "description": "Confidence threshold for automatic completion detection (0-1)"
+            }
+        }
+    )
+    completion_indicators: List[str] = Field(
+        default=["research complete", "analysis complete", "findings summarized", "investigation finished", "task accomplished"],
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "research complete, analysis complete, findings summarized, investigation finished, task accomplished",
+                "description": "Comma-separated list of phrases indicating agent completion"
+            }
+        }
+    )
+    
+    # Running Reports Configuration
+    use_running_reports: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable incremental report building during sequential execution"
+            }
+        }
+    )
+    report_update_frequency: ReportUpdateFrequency = Field(
+        default=ReportUpdateFrequency.AFTER_EACH_AGENT,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": "after_each_agent",
+                "description": "Frequency for updating the running report",
+                "options": [
+                    {"label": "After Each Agent", "value": ReportUpdateFrequency.AFTER_EACH_AGENT.value},
+                    {"label": "After Complete Sequence", "value": ReportUpdateFrequency.AFTER_SEQUENCE.value},
+                    {"label": "On Demand Only", "value": ReportUpdateFrequency.ON_DEMAND.value}
+                ]
+            }
+        }
+    )
+    include_agent_metadata: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Include agent execution metadata (timing, quality scores) in running reports"
+            }
+        }
+    )
+    
+    # LLM Judge Configuration
+    enable_llm_judge: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable LLM-based evaluation of research reports and agent performance"
+            }
+        }
+    )
+    evaluation_model: str = Field(
+        default="anthropic:claude-3-5-sonnet",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "anthropic:claude-3-5-sonnet",
+                "description": "Model to use for LLM-based evaluation and report scoring"
+            }
+        }
+    )
+    evaluation_model_max_tokens: int = Field(
+        default=8192,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 8192,
+                "description": "Maximum output tokens for evaluation model"
+            }
+        }
+    )
+    evaluation_criteria: List[str] = Field(
+        default=["completeness", "depth", "coherence", "innovation", "actionability"],
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "completeness, depth, coherence, innovation, actionability",
+                "description": "Comma-separated list of evaluation criteria for report assessment"
+            }
+        }
+    )
+    evaluation_timeout: int = Field(
+        default=120,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 120,
+                "min": 30,
+                "max": 600,
+                "description": "Timeout for LLM evaluation calls in seconds"
             }
         }
     )
@@ -495,7 +748,57 @@ class Configuration(BaseModel):
         }
         return cls(**{k: v for k, v in values.items() if v is not None})
 
+    @validator('completion_indicators', pre=True)
+    def parse_completion_indicators(cls, v):
+        """Parse completion indicators from comma-separated string or list."""
+        if isinstance(v, str):
+            return [indicator.strip() for indicator in v.split(',') if indicator.strip()]
+        return v or ["research complete", "analysis complete", "findings summarized"]
+    
+    @validator('evaluation_criteria', pre=True)
+    def parse_evaluation_criteria(cls, v):
+        """Parse evaluation criteria from comma-separated string or list."""
+        if isinstance(v, str):
+            return [criterion.strip() for criterion in v.split(',') if criterion.strip()]
+        return v or ["completeness", "depth", "coherence", "innovation", "actionability"]
+    
+    @validator('project_agents_dir')
+    def validate_project_agents_dir(cls, v):
+        """Validate project agents directory path."""
+        if not v or not isinstance(v, str):
+            return ".open_deep_research/agents"
+        return v.strip()
+    
+    @validator('user_agents_dir')
+    def validate_user_agents_dir(cls, v):
+        """Validate user agents directory path."""
+        if not v or not isinstance(v, str):
+            return "~/.open_deep_research/agents"
+        return v.strip()
+    
+    @validator('completion_confidence_threshold', 'modification_threshold')
+    def validate_threshold_range(cls, v):
+        """Ensure threshold values are between 0 and 1."""
+        if not isinstance(v, (int, float)):
+            return 0.6
+        return max(0.0, min(1.0, float(v)))
+    
+    @validator('max_agents_per_sequence')
+    def validate_max_agents_per_sequence(cls, v):
+        """Ensure max agents per sequence is reasonable."""
+        if not isinstance(v, int) or v < 2:
+            return 5
+        return min(v, 20)  # Cap at reasonable maximum
+    
+    @validator('evaluation_timeout')
+    def validate_evaluation_timeout(cls, v):
+        """Ensure evaluation timeout is reasonable."""
+        if not isinstance(v, int) or v < 30:
+            return 120
+        return min(v, 600)  # Cap at 10 minutes
+
     class Config:
         """Pydantic configuration."""
         
         arbitrary_types_allowed = True
+        use_enum_values = True

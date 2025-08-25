@@ -1,0 +1,281 @@
+#!/usr/bin/env python3
+"""
+Demonstration script for CompletionDetector integration with sequential multi-agent workflows.
+
+This script shows how the completion detector works with agent registry completion indicators
+and provides examples of robust completion detection in production scenarios.
+"""
+
+import logging
+from typing import List, Dict, Any
+from langchain_core.messages import AIMessage
+
+from completion_detector import CompletionDetector, DetectionStrategy, CompletionPattern
+from registry import AgentRegistry
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def demo_basic_completion_detection():
+    """Demonstrate basic completion detection functionality."""
+    print("=== Basic Completion Detection Demo ===\n")
+    
+    detector = CompletionDetector(debug_mode=False)
+    
+    # Test messages with varying completion confidence
+    test_messages = [
+        ("Strong completion signal", 
+         "The research is complete. All findings have been summarized and the investigation has concluded."),
+        
+        ("Conclusion with summary", 
+         "In conclusion, after extensive analysis of the market trends and technical feasibility, "
+         "I can summarize that the technology shows strong potential. The research objectives have been met."),
+        
+        ("Partial work indication", 
+         "I'm still analyzing the data and need to conduct additional searches to gather more information."),
+        
+        ("Handoff readiness", 
+         "The analysis is ready for handoff to the next phase. All key aspects have been covered."),
+        
+        ("Work completion", 
+         "The comprehensive analysis has been completed. No more sources are available for this topic."),
+    ]
+    
+    for description, content in test_messages:
+        message = AIMessage(content=content)
+        
+        # Analyze with combined strategy
+        result = detector.analyze_completion_patterns(message)
+        
+        print(f"Test: {description}")
+        print(f"  Content: {content[:80]}...")
+        print(f"  Complete: {result.is_complete}")
+        print(f"  Confidence: {result.confidence:.3f}")
+        print(f"  Matched patterns: {len(result.matched_patterns)}")
+        print(f"  Top patterns: {result.matched_patterns[:2]}")
+        print()
+
+
+def demo_custom_agent_indicators():
+    """Demonstrate custom completion indicators per agent type."""
+    print("=== Custom Agent Indicators Demo ===\n")
+    
+    detector = CompletionDetector()
+    
+    # Simulate different agent types with custom completion indicators
+    agent_scenarios = [
+        {
+            "agent_type": "academic_researcher",
+            "custom_indicators": [
+                r"literature\s+review\s+complete",
+                r"theoretical\s+analysis\s+concluded",
+                r"research\s+gaps\s+identified"
+            ],
+            "message": "The literature review is complete and all theoretical analysis has been concluded. "
+                      "Key research gaps have been identified for future investigation."
+        },
+        {
+            "agent_type": "market_analyst", 
+            "custom_indicators": [
+                r"market\s+assessment\s+finished",
+                r"competitive\s+analysis\s+done",
+                r"business\s+case\s+evaluated"
+            ],
+            "message": "Market assessment is finished with comprehensive competitive analysis done. "
+                      "The business case has been thoroughly evaluated."
+        },
+        {
+            "agent_type": "technical_specialist",
+            "custom_indicators": [
+                r"implementation\s+feasibility\s+assessed",
+                r"technical\s+constraints\s+analyzed",
+                r"architecture\s+review\s+complete"
+            ],
+            "message": "Implementation feasibility has been assessed and technical constraints analyzed. "
+                      "The architecture review is complete with recommendations."
+        }
+    ]
+    
+    for scenario in agent_scenarios:
+        message = AIMessage(content=scenario["message"])
+        
+        # Test without custom indicators
+        result_default = detector.analyze_completion_patterns(message)
+        
+        # Test with custom indicators
+        result_custom = detector.analyze_completion_patterns(
+            message, 
+            custom_indicators=scenario["custom_indicators"]
+        )
+        
+        print(f"Agent: {scenario['agent_type']}")
+        print(f"  Message: {scenario['message'][:60]}...")
+        print(f"  Default confidence: {result_default.confidence:.3f}")
+        print(f"  Custom confidence: {result_custom.confidence:.3f}")
+        print(f"  Improvement: {result_custom.confidence - result_default.confidence:.3f}")
+        print(f"  Custom patterns matched: {[p for p in result_custom.matched_patterns if 'Custom:' in p]}")
+        print()
+
+
+def demo_detection_strategies():
+    """Demonstrate different detection strategies and their effectiveness."""
+    print("=== Detection Strategies Demo ===\n")
+    
+    detector = CompletionDetector()
+    
+    # Test message with mixed signals
+    test_content = """
+    After conducting extensive research and analysis, I have gathered comprehensive data 
+    on the market trends. The investigation has been thorough and systematic.
+    
+    In conclusion, the findings reveal significant opportunities in the emerging technology 
+    sector. The analysis is complete and all relevant sources have been consulted.
+    
+    Final thoughts: The research objectives have been met and the deliverable is ready 
+    for the next phase of the project.
+    """
+    
+    message = AIMessage(content=test_content)
+    
+    strategies = [
+        DetectionStrategy.CONTENT_PATTERNS,
+        DetectionStrategy.TOOL_USAGE_PATTERNS, 
+        DetectionStrategy.MESSAGE_STRUCTURE,
+        DetectionStrategy.COMBINED
+    ]
+    
+    print("Testing different detection strategies on the same message:\n")
+    
+    for strategy in strategies:
+        result = detector.analyze_completion_patterns(message, strategy=strategy)
+        
+        print(f"Strategy: {strategy.value}")
+        print(f"  Confidence: {result.confidence:.3f}")
+        print(f"  Complete: {result.is_complete}")
+        print(f"  Patterns matched: {len(result.matched_patterns)}")
+        print(f"  Key patterns: {result.matched_patterns[:3]}")
+        print()
+
+
+def demo_agent_registry_integration():
+    """Demonstrate integration with agent registry completion indicators."""
+    print("=== Agent Registry Integration Demo ===\n")
+    
+    # This would normally load from actual agent files, but we'll simulate
+    mock_agent_configs = {
+        "research_specialist": {
+            "name": "research_specialist",
+            "completion_indicators": [
+                "research methodology established",
+                "data collection complete", 
+                "analysis framework ready"
+            ]
+        },
+        "synthesis_agent": {
+            "name": "synthesis_agent", 
+            "completion_indicators": [
+                "synthesis complete",
+                "insights consolidated",
+                "final report ready"
+            ]
+        }
+    }
+    
+    detector = CompletionDetector()
+    
+    test_cases = [
+        {
+            "agent": "research_specialist",
+            "message": "The research methodology has been established and data collection is complete. "
+                      "The analysis framework is ready for the next phase."
+        },
+        {
+            "agent": "synthesis_agent",
+            "message": "Synthesis is complete with all insights consolidated. The final report is ready "
+                      "for review and distribution."
+        }
+    ]
+    
+    for case in test_cases:
+        agent_config = mock_agent_configs[case["agent"]]
+        message = AIMessage(content=case["message"])
+        
+        # Use agent-specific completion indicators
+        result = detector.analyze_completion_patterns(
+            message,
+            custom_indicators=agent_config["completion_indicators"]
+        )
+        
+        print(f"Agent: {case['agent']}")
+        print(f"  Completion indicators: {agent_config['completion_indicators']}")
+        print(f"  Message: {case['message'][:60]}...")
+        print(f"  Detection result: {result.is_complete} (confidence: {result.confidence:.3f})")
+        print(f"  Matched indicators: {[p for p in result.matched_patterns if 'Custom:' in p]}")
+        print()
+
+
+def demo_production_usage():
+    """Demonstrate production-ready usage patterns."""
+    print("=== Production Usage Demo ===\n")
+    
+    detector = CompletionDetector()
+    
+    # Add custom pattern for production environment
+    detector.add_custom_pattern(CompletionPattern(
+        pattern=r"handoff\s+to\s+next\s+agent",
+        weight=0.8,
+        description="Explicit agent handoff signal"
+    ))
+    
+    # Adjust threshold for production requirements
+    detector.set_completion_threshold(0.6)  # Higher threshold for production
+    
+    print("Production configuration:")
+    print(f"  Completion threshold: {detector.completion_threshold}")
+    print(f"  Debug mode: {detector.debug_mode}")
+    
+    # Simulate production workflow
+    workflow_messages = [
+        "Starting research on market analysis for AI technologies.",
+        "Conducting searches and gathering relevant data sources.",
+        "Analysis in progress with preliminary findings emerging.",
+        "Research complete. Comprehensive analysis finished with all findings summarized. "
+        "Ready for handoff to next agent.",
+        "Next agent can proceed with the implementation phase."
+    ]
+    
+    print("\nSimulated workflow progression:")
+    for i, content in enumerate(workflow_messages, 1):
+        message = AIMessage(content=content)
+        result = detector.analyze_completion_patterns(message)
+        
+        status = "🟢 COMPLETE" if result.is_complete else "🟡 ONGOING"
+        print(f"  Step {i}: {status} (confidence: {result.confidence:.3f}) - {content[:50]}...")
+    
+    print()
+
+
+def main():
+    """Run all demonstration scenarios."""
+    print("🤖 CompletionDetector Demo for Sequential Multi-Agent Workflows\n")
+    print("This demo shows how the completion detector enables automatic handoff")
+    print("detection in sequential agent workflows without explicit handoff tools.\n")
+    
+    demo_basic_completion_detection()
+    demo_custom_agent_indicators()
+    demo_detection_strategies()
+    demo_agent_registry_integration()
+    demo_production_usage()
+    
+    print("✅ Demo completed successfully!")
+    print("\nKey takeaways:")
+    print("- CompletionDetector supports multiple detection strategies")
+    print("- Custom completion indicators enable agent-specific detection")
+    print("- Confidence scoring allows for flexible threshold management")
+    print("- Production-ready with comprehensive error handling and logging")
+
+
+if __name__ == "__main__":
+    main()

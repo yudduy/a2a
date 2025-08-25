@@ -77,14 +77,7 @@ from .stream_multiplexer import (
     MessageBuffer,
     create_stream_multiplexer
 )
-from .langgraph_wrapper import (
-    DelegationEvent,
-    DelegationState,
-    ParallelDelegationState,
-    parallel_execution_graph,
-    get_stream_stats,
-    cleanup_streams
-)
+# Legacy langgraph wrapper removed - now using LLM-generated sequences
 
 __all__ = [
     # Core Engine
@@ -135,13 +128,7 @@ __all__ = [
     "MessageBuffer",
     "create_stream_multiplexer",
     
-    # LangGraph Integration
-    "DelegationEvent",
-    "DelegationState",
-    "ParallelDelegationState",
-    "parallel_execution_graph",
-    "get_stream_stats",
-    "cleanup_streams"
+    # LangGraph Integration - Legacy removed
 ]
 
 # Version information

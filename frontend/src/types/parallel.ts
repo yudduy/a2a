@@ -11,7 +11,23 @@
 // ========================================
 
 /**
- * Sequence strategies for specialized agent ordering
+ * LLM-generated sequence interface (replaces hardcoded strategies)
+ */
+export interface LLMGeneratedSequence {
+  sequence_id: string;
+  sequence_name: string;        // LLM-generated name like "Deep Technical Analysis"
+  agent_names: string[];        // e.g., ["research_agent", "technical_agent", "analysis_agent"]
+  rationale: string;           // LLM reasoning for this sequence
+  research_focus: string;      // Focus area description
+  confidence_score: number;    // 0.0-1.0
+  approach_description: string; // High-level description of the research approach
+  expected_outcomes: string[]; // Expected outcomes from this sequence
+  created_at: string;         // Timestamp
+}
+
+/**
+ * Legacy sequence strategies (kept for backward compatibility)
+ * @deprecated Use LLMGeneratedSequence instead
  */
 export enum SequenceStrategy {
   THEORY_FIRST = "theory_first",
@@ -58,8 +74,10 @@ export enum DeliveryGuarantee {
 export interface StreamMessage {
   message_id: string;
   sequence_id: string;
-  sequence_strategy: SequenceStrategy;
+  sequence_name?: string;        // LLM-generated sequence name
+  sequence_strategy?: SequenceStrategy; // Legacy field for backward compatibility
   agent_type?: AgentType;
+  current_agent?: string;        // Current agent name
   message_type: 'progress' | 'result' | 'error' | 'completion' | 'agent_transition';
   timestamp: number;
   content: any;
@@ -127,14 +145,17 @@ export interface ErrorMessage {
  */
 export interface SequenceProgress {
   sequence_id: string;
-  strategy: SequenceStrategy;
+  sequence_name?: string;        // LLM-generated sequence name
+  strategy?: SequenceStrategy;   // Legacy field for backward compatibility
   current_agent: AgentType | null;
-  agent_index: number; // 0, 1, 2
+  current_agent_name?: string;   // Current agent name in LLM sequence
+  agents_completed: number;      // Number of agents completed
+  total_agents: number;          // Total agents in sequence
   completion_percentage: number;
-  estimated_remaining_time?: number; // seconds
-  messages_received: number;
+  estimated_time_remaining?: number; // seconds
+  messages_received?: number;    // Made optional for backward compatibility
   last_activity: number;
-  status: 'pending' | 'active' | 'completed' | 'failed' | 'cancelled';
+  status: 'initializing' | 'pending' | 'active' | 'completed' | 'failed' | 'cancelled';
 }
 
 /**
@@ -142,16 +163,20 @@ export interface SequenceProgress {
  */
 export interface SequenceState {
   sequence_id: string;
-  strategy: SequenceStrategy;
+  sequence?: LLMGeneratedSequence;  // LLM-generated sequence details
+  strategy?: SequenceStrategy;      // Legacy field for backward compatibility
   progress: SequenceProgress;
   messages: RoutedMessage[];
   current_agent: AgentType | null;
+  current_agent_name?: string;      // Current agent name in LLM sequence
   agent_transitions: AgentTransition[];
   errors: ErrorMessage[];
   start_time: number;
   end_time?: number;
   final_result?: string;
   metrics: SequenceMetrics;
+  status: 'initializing' | 'running' | 'completed' | 'failed';
+  last_activity: string;
 }
 
 /**
@@ -169,13 +194,16 @@ export interface AgentTransition {
  * Performance metrics for sequence execution
  */
 export interface SequenceMetrics {
-  total_messages: number;
-  processing_time: number; // milliseconds
-  agent_calls: number;
-  insights_generated: number;
+  sequence_id: string;
+  message_count: number;           // Renamed from total_messages for consistency
+  research_duration: number;       // milliseconds
+  tokens_used: number;            // Token usage tracking
+  average_response_time: number;  // Average response time
+  agent_calls?: number;           // Made optional
+  insights_generated?: number;    // Made optional
   quality_score?: number;
   efficiency_score?: number;
-  last_updated: number;
+  last_updated?: number;          // Made optional
 }
 
 // ========================================
@@ -186,13 +214,17 @@ export interface SequenceMetrics {
  * Aggregated state for all parallel sequences
  */
 export interface ParallelSequencesState {
-  sequences: SequenceState[];
-  overall_progress: number; // 0-100
+  sequences: SequenceState[];     // Now contains 3 LLM-generated sequences
+  overall_progress: number;       // 0-100
   active_sequences: number;
   completed_sequences: number;
   total_messages: number;
   start_time: number;
   research_query: string;
+  activeSequenceId: string;       // Currently viewed sequence
+  executionStartTime?: string;
+  connectionState: ConnectionState;
+  metrics: RealTimeMetrics;
   status: 'initializing' | 'running' | 'completing' | 'completed' | 'failed';
 }
 
@@ -278,13 +310,14 @@ export interface UseParallelSequencesReturn {
   metrics: RealTimeMetrics;
   
   // Control functions
-  start: (query: string) => Promise<void>;
+  start: (query: string, llmSequences?: LLMGeneratedSequence[]) => Promise<void>;
   stop: () => void;
   restart: () => void;
   
   // Sequence-specific controls
   pauseSequence: (sequenceId: string) => void;
   resumeSequence: (sequenceId: string) => void;
+  changeActiveSequence: (sequenceId: string) => void;
   
   // Message access
   getSequenceMessages: (sequenceId: string) => RoutedMessage[];
@@ -371,8 +404,10 @@ export interface ExtendedParallelMessage {
  */
 export interface ProcessedSequenceEvent {
   sequence_id: string;
-  strategy: SequenceStrategy;
+  sequence_name?: string;         // LLM-generated sequence name
+  strategy?: SequenceStrategy;    // Legacy field for backward compatibility
   agent_type?: AgentType;
+  agent_name?: string;           // Current agent name
   title: string;
   data: string;
   timestamp: number;

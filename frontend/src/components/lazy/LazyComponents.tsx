@@ -237,9 +237,9 @@ export const LazyWelcomeScreen = createLazyComponent(
   'immediate'
 );
 
-export const LazyChatMessagesView = createLazyComponent(
-  () => import('@/components/ChatMessagesView'),
-  'ChatMessagesView',
+export const LazyChatInterface = createLazyComponent(
+  () => import('@/components/ChatInterface'),
+  'ChatInterface',
   'hover'
 );
 
@@ -291,6 +291,7 @@ export function useComponentPreloader() {
     const componentsToPreload = [
       { name: 'DelegationDashboard', fn: LazyDelegationDashboard.preload },
       { name: 'MetricsPanel', fn: LazyMetricsPanel.preload },
+      { name: 'ChatInterface', fn: LazyChatInterface.preload },
     ];
 
     componentsToPreload.forEach(({ name, fn }) => {
@@ -404,7 +405,7 @@ export default {
   LazyDelegationDashboard,
   LazyMetricsPanel,
   LazyWelcomeScreen,
-  LazyChatMessagesView,
+  LazyChatInterface,
   LazyActivityTimeline,
   useComponentPreloader,
   useResourceHints,

@@ -1,0 +1,183 @@
+import React, { useState } from 'react';
+import { MessageContentParser } from '@/types/messages';
+import { ThinkingSections } from '@/components/ui/collapsible-thinking';
+
+// Test component to validate thinking sections implementation
+export const ThinkingSectionsTest: React.FC = () => {
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  // Test cases with various thinking content patterns
+  const testCases = [
+    {
+      name: "Basic thinking section",
+      content: "Let me analyze this problem.\n\n<thinking>\nThis requires careful consideration of multiple factors:\n1. The user's request\n2. Available data\n3. Best approach\n\nI think the solution should focus on clarity and accuracy.\n</thinking>\n\nBased on my analysis, here's my recommendation."
+    },
+    {
+      name: "Multiple thinking sections",
+      content: "First, let me consider the options.\n\n<thinking>\nOption 1: Direct approach\n- Simple to implement\n- May lack nuance\n</thinking>\n\nNow let me think about alternatives.\n\n<thinking>\nOption 2: Comprehensive approach\n- More thorough\n- Takes more time\n- Better outcomes\n</thinking>\n\nHere's my final recommendation."
+    },
+    {
+      name: "Using think tags (alternative format)",
+      content: "This is an interesting question.\n\n<think>\nI need to break this down:\n- What is the core issue?\n- What are the constraints?\n- What would be the best solution?\n\nThis seems like a case where we need to balance multiple priorities.\n</think>\n\nBased on this analysis, I recommend the following approach."
+    },
+    {
+      name: "Unclosed thinking tag",
+      content: "Let me work through this step by step.\n\n<thinking>\nThis is a complex problem that requires:\n1. Understanding the context\n2. Analyzing the requirements\n3. Proposing a solution\n\nI should focus on providing a clear, actionable response."
+    },
+    {
+      name: "Empty thinking section",
+      content: "Here's my response.\n\n<thinking>\n\n</thinking>\n\nNo thinking needed for this simple case."
+    },
+    {
+      name: "No thinking sections",
+      content: "This is a straightforward response without any thinking sections. It should render normally without any collapsible components."
+    }
+  ];
+
+  const handleToggleSection = (sectionId: string) => {
+    setExpandedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  };
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto space-y-8">
+      <h1 className="text-2xl font-bold text-white mb-6">Thinking Sections Test</h1>
+      
+      {testCases.map((testCase, index) => {
+        // Parse the message content using MessageContentParser
+        let parsedContent;
+        let error = null;
+        
+        try {
+          const mockMessage = { 
+            content: testCase.content, 
+            type: 'ai', 
+            id: `test-${index}` 
+          };
+          parsedContent = MessageContentParser.parse(mockMessage);
+        } catch (e) {
+          error = e as Error;
+        }
+
+        return (
+          <div key={index} className="bg-neutral-800 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold text-blue-400 mb-3">
+              Test Case {index + 1}: {testCase.name}
+            </h2>
+            
+            {/* Raw Content */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-neutral-400 mb-2">Raw Content:</h3>
+              <pre className="text-xs bg-neutral-900 p-2 rounded whitespace-pre-wrap text-neutral-300">
+                {testCase.content}
+              </pre>
+            </div>
+
+            {/* Parsed Results */}
+            {error ? (
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-red-400 mb-2">Parsing Error:</h3>
+                <pre className="text-xs bg-red-900/20 p-2 rounded text-red-300">
+                  {error.message}
+                </pre>
+              </div>
+            ) : parsedContent ? (
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-neutral-400 mb-2">Parsing Results:</h3>
+                <div className="text-xs bg-neutral-900 p-2 rounded space-y-1">
+                  <div className="text-green-400">
+                    Has Thinking: {parsedContent.hasThinking ? 'Yes' : 'No'}
+                  </div>
+                  <div className="text-blue-400">
+                    Thinking Sections: {parsedContent.thinkingSections.length}
+                  </div>
+                  {parsedContent.preThinking && (
+                    <div className="text-yellow-400">
+                      Pre-thinking: "{parsedContent.preThinking.slice(0, 50)}..."
+                    </div>
+                  )}
+                  {parsedContent.postThinking && (
+                    <div className="text-purple-400">
+                      Post-thinking: "{parsedContent.postThinking.slice(0, 50)}..."
+                    </div>
+                  )}
+                  {parsedContent.thinkingSections.map((section, secIndex) => (
+                    <div key={secIndex} className="text-cyan-400">
+                      Section {secIndex + 1} (ID: {section.id}, {section.charLength} chars): 
+                      "{section.content.slice(0, 30)}..."
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rendered Components */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-neutral-400 mb-2">Rendered Components:</h3>
+              <div className="bg-neutral-700 p-3 rounded">
+                {parsedContent && parsedContent.hasThinking ? (
+                  <div className="space-y-3">
+                    {/* Pre-thinking content */}
+                    {parsedContent.preThinking && (
+                      <div className="text-white">
+                        <div className="text-xs text-neutral-500 mb-1">Pre-thinking content:</div>
+                        <div className="whitespace-pre-wrap">{parsedContent.preThinking}</div>
+                      </div>
+                    )}
+                    
+                    {/* Thinking sections */}
+                    {parsedContent.thinkingSections.length > 0 && (
+                      <div>
+                        <div className="text-xs text-neutral-500 mb-2">Thinking sections:</div>
+                        <ThinkingSections
+                          sections={parsedContent.thinkingSections}
+                          expandedSections={expandedSections}
+                          onToggleSection={handleToggleSection}
+                          hasTypingAnimation={false}
+                          typingSpeed={20}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Post-thinking content */}
+                    {parsedContent.postThinking && (
+                      <div className="text-white">
+                        <div className="text-xs text-neutral-500 mb-1">Post-thinking content:</div>
+                        <div className="whitespace-pre-wrap">{parsedContent.postThinking}</div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-white whitespace-pre-wrap">
+                    <div className="text-xs text-neutral-500 mb-1">Normal content (no thinking):</div>
+                    {testCase.content}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      
+      <div className="bg-green-900/20 border border-green-500/30 p-4 rounded-lg">
+        <h2 className="text-green-400 font-semibold mb-2">Test Validation Checklist:</h2>
+        <ul className="text-green-300 text-sm space-y-1">
+          <li>✓ Thinking sections should be properly parsed and extracted</li>
+          <li>✓ Raw &lt;thinking&gt; and &lt;think&gt; tags should never be visible in rendered content</li>
+          <li>✓ Pre-thinking and post-thinking content should be displayed separately</li>
+          <li>✓ Each thinking section should be collapsible</li>
+          <li>✓ Character counts should be accurate (not 0 for valid content)</li>
+          <li>✓ Empty thinking sections should be filtered out</li>
+          <li>✓ Unclosed thinking tags should be handled gracefully</li>
+        </ul>
+      </div>
+    </div>
+  );
+};

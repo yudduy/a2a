@@ -10,6 +10,42 @@ export interface ExtendedMessage {
   tool_call_id?: string;
 }
 
+// New interfaces for thinking sections and parsed content
+export interface ThinkingSection {
+  id: string;
+  content: string;
+  startIndex: number;
+  endIndex: number;
+  isCollapsed: boolean;
+  charLength: number;
+}
+
+export interface RenderSection {
+  id: string;
+  type: 'text' | 'thinking' | 'tool';
+  content: string;
+  order: number;
+  typingSpeed?: number;
+  isCollapsible: boolean;
+  isCollapsed: boolean;
+}
+
+export interface ParsedMessageContent {
+  // Main content sections
+  preThinking?: string;
+  thinkingSections: ThinkingSection[];
+  postThinking?: string;
+  
+  // Tool-related content
+  toolCalls: ToolCall[];
+  toolResults: ToolMessage[];
+  
+  // Metadata
+  hasThinking: boolean;
+  totalCharacters: number;
+  renderSections: RenderSection[];
+}
+
 // Type guard to check if a message is a tool message
 export function isToolMessage(message: ExtendedMessage | LangGraphMessage): message is ToolMessage {
   return message.type === 'tool' && 'tool_call_id' in message;
@@ -195,4 +231,248 @@ export function countToolCallsByStatus(
   }
   
   return counts;
+}
+
+// Message Content Parser for thinking sections
+export class MessageContentParser {
+  private static thinkingCounter = 0;
+  
+  static parse(message: ExtendedMessage | LangGraphMessage): ParsedMessageContent {
+    const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content || '');
+    
+    // Extract thinking sections
+    const thinkingSections = this.extractThinkingSections(content);
+    
+    // Extract tool calls
+    const toolCalls = extractToolCallsFromMessage(message);
+    
+    // Split clean content into pre/post thinking
+    const { preThinking, postThinking } = this.splitAroundThinking(content, thinkingSections);
+    
+    // Create render sections
+    const renderSections = this.createRenderSections(preThinking, thinkingSections, postThinking, toolCalls);
+    
+    return {
+      preThinking,
+      thinkingSections,
+      postThinking,
+      toolCalls,
+      toolResults: [], // Will be populated by caller with tool results
+      hasThinking: thinkingSections.length > 0,
+      totalCharacters: content.length,
+      renderSections,
+    };
+  }
+  
+  private static extractThinkingSections(content: string): ThinkingSection[] {
+    const sections: ThinkingSection[] = [];
+    const allMatches: Array<{match: RegExpExecArray, type: string}> = [];
+    
+    // Support both <thinking> and <think> tags with improved patterns
+    const thinkingPatterns = [
+      {
+        // Closed thinking tags
+        pattern: /<thinking>([\s\S]*?)<\/thinking>/gm,
+        type: 'thinking'
+      },
+      {
+        // Closed think tags  
+        pattern: /<think>([\s\S]*?)<\/think>/gm,
+        type: 'think'
+      },
+      {
+        // Unclosed thinking tags (only if no closing tag found)
+        pattern: /<thinking>([\s\S]*)$/gm,
+        type: 'thinking-unclosed'
+      },
+      {
+        // Unclosed think tags (only if no closing tag found)
+        pattern: /<think>([\s\S]*)$/gm,
+        type: 'think-unclosed'
+      }
+    ];
+    
+    // First, collect all matches
+    for (const { pattern, type } of thinkingPatterns) {
+      let match;
+      pattern.lastIndex = 0;
+      
+      while ((match = pattern.exec(content)) !== null) {
+        allMatches.push({ match, type });
+      }
+    }
+    
+    // Process matches in order of appearance
+    const processedRanges = new Set<string>();
+    
+    for (const { match, type } of allMatches) {
+      const thinkingContent = match[1]?.trim() || '';
+      const startIndex = match.index;
+      const endIndex = match.index + match[0].length;
+      const rangeKey = `${startIndex}-${endIndex}`;
+      
+      // Skip if we've already processed this range
+      if (processedRanges.has(rangeKey)) {
+        continue;
+      }
+      
+      // Skip empty content
+      if (thinkingContent.length === 0) {
+        continue;
+      }
+      
+      // Skip unclosed tags if we have closed tags covering the same content
+      if (type.includes('unclosed')) {
+        const hasClosedVersion = allMatches.some(other => 
+          !other.type.includes('unclosed') && 
+          Math.abs(other.match.index - startIndex) < 50
+        );
+        if (hasClosedVersion) {
+          continue;
+        }
+      }
+      
+      sections.push({
+        id: `${type.replace('-unclosed', '')}-${++this.thinkingCounter}`,
+        content: thinkingContent,
+        startIndex,
+        endIndex,
+        isCollapsed: true, // Default to collapsed for better UX
+        charLength: thinkingContent.length,
+      });
+      
+      processedRanges.add(rangeKey);
+    }
+    
+    // Sort sections by start index to maintain document order
+    return sections.sort((a, b) => a.startIndex - b.startIndex);
+  }
+  
+  private static removeThinkingTags(content: string): string {
+    // More comprehensive tag removal that handles all edge cases
+    let cleanContent = content;
+    
+    // Remove closed thinking tags first
+    cleanContent = cleanContent.replace(/<thinking>[\s\S]*?<\/thinking>/gm, '');
+    cleanContent = cleanContent.replace(/<think>[\s\S]*?<\/think>/gm, '');
+    
+    // Remove unclosed thinking tags (from opening tag to end of content)
+    cleanContent = cleanContent.replace(/<thinking>[\s\S]*$/gm, '');
+    cleanContent = cleanContent.replace(/<think>[\s\S]*$/gm, '');
+    
+    // Clean up any remaining orphaned closing tags
+    cleanContent = cleanContent.replace(/<\/thinking>/gm, '');
+    cleanContent = cleanContent.replace(/<\/think>/gm, '');
+    
+    // Normalize whitespace and return
+    return cleanContent.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+  }
+  
+  private static splitAroundThinking(
+    content: string,
+    thinkingSections: ThinkingSection[]
+  ): { preThinking?: string; postThinking?: string } {
+    if (thinkingSections.length === 0) {
+      // No thinking sections - return all content as pre-thinking
+      const cleanedContent = this.removeThinkingTags(content);
+      return { preThinking: cleanedContent || undefined };
+    }
+    
+    const firstThinking = thinkingSections[0];
+    const lastThinking = thinkingSections[thinkingSections.length - 1];
+    
+    // Extract content before first thinking section
+    let preThinking = content.slice(0, firstThinking.startIndex).trim();
+    // Remove any thinking tags from pre-content (in case of malformed content)
+    preThinking = this.removeThinkingTags(preThinking);
+    
+    // Extract content after last thinking section
+    let postThinking = content.slice(lastThinking.endIndex).trim();
+    // Remove any thinking tags from post-content (in case of malformed content)
+    postThinking = this.removeThinkingTags(postThinking);
+    
+    return {
+      preThinking: preThinking || undefined,
+      postThinking: postThinking || undefined,
+    };
+  }
+  
+  private static createRenderSections(
+    preThinking: string | undefined,
+    thinkingSections: ThinkingSection[],
+    postThinking: string | undefined,
+    toolCalls: ToolCall[]
+  ): RenderSection[] {
+    const sections: RenderSection[] = [];
+    let order = 0;
+    
+    // Add pre-thinking text
+    if (preThinking) {
+      sections.push({
+        id: 'pre-thinking',
+        type: 'text',
+        content: preThinking,
+        order: order++,
+        typingSpeed: 25,
+        isCollapsible: false,
+        isCollapsed: false,
+      });
+    }
+    
+    // Add thinking sections
+    for (const thinking of thinkingSections) {
+      sections.push({
+        id: thinking.id,
+        type: 'thinking',
+        content: thinking.content,
+        order: order++,
+        typingSpeed: 20,
+        isCollapsible: true,
+        isCollapsed: thinking.isCollapsed,
+      });
+    }
+    
+    // Add post-thinking text
+    if (postThinking) {
+      sections.push({
+        id: 'post-thinking',
+        type: 'text',
+        content: postThinking,
+        order: order++,
+        typingSpeed: 25,
+        isCollapsible: false,
+        isCollapsed: false,
+      });
+    }
+    
+    // Add tool sections
+    for (const toolCall of toolCalls) {
+      sections.push({
+        id: `tool-${toolCall.id}`,
+        type: 'tool',
+        content: JSON.stringify(toolCall),
+        order: order++,
+        isCollapsible: true,
+        isCollapsed: false, // Tools start expanded
+      });
+    }
+    
+    return sections.sort((a, b) => a.order - b.order);
+  }
+  
+  // Helper to check if content has thinking sections
+  static hasThinkingContent(content: string): boolean {
+    return /<think(?:ing)?>([\s\S]*?)(<\/think(?:ing)?>|$)/i.test(content);
+  }
+  
+  // Helper to get thinking sections count
+  static countThinkingSections(content: string): number {
+    const sections = this.extractThinkingSections(content);
+    return sections.length;
+  }
+  
+  // Helper to extract clean content without thinking tags
+  static getCleanContent(content: string): string {
+    return this.removeThinkingTags(content);
+  }
 }

@@ -21,15 +21,15 @@ interface ToolMessageDisplayProps {
   onToggle: () => void;
 }
 
-// Tool execution status indicators
+// Tool execution status indicators with improved styling
 const getStatusBadge = (toolMessage?: ToolMessage) => {
   if (!toolMessage) {
     return (
       <Badge
         variant="secondary"
-        className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs font-medium"
+        className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs font-medium flex items-center gap-1"
       >
-        <Clock className="h-3 w-3 mr-1" />
+        <Clock className="h-3 w-3 animate-pulse" />
         Running
       </Badge>
     );
@@ -38,9 +38,9 @@ const getStatusBadge = (toolMessage?: ToolMessage) => {
     return (
       <Badge
         variant="destructive"
-        className="bg-red-500/10 text-red-600 border-red-500/20 text-xs font-medium"
+        className="bg-red-500/10 text-red-400 border-red-500/20 text-xs font-medium flex items-center gap-1"
       >
-        <XCircle className="h-3 w-3 mr-1" />
+        <XCircle className="h-3 w-3" />
         Error
       </Badge>
     );
@@ -48,9 +48,9 @@ const getStatusBadge = (toolMessage?: ToolMessage) => {
   return (
     <Badge
       variant="default"
-      className="mr-2 bg-green-500/10 text-green-600 border-green-500/20 text-xs font-medium"
+      className="bg-green-500/10 text-green-400 border-green-500/20 text-xs font-medium flex items-center gap-1"
     >
-      <CheckCircle className="h-3 w-3 mr-1" />
+      <CheckCircle className="h-3 w-3" />
       Success
     </Badge>
   );
@@ -77,10 +77,10 @@ export function ToolMessageDisplay({
   onToggle,
 }: ToolMessageDisplayProps) {
   return (
-    <div className="border border-neutral-600/40 bg-neutral-800/30 rounded-lg overflow-hidden mt-4 mb-4 min-w-0">
+    <div className="border border-neutral-600/40 bg-neutral-800/30 rounded-lg overflow-hidden my-3 min-w-0">
       <Collapsible open={isExpanded} onOpenChange={onToggle}>
         <CollapsibleTrigger asChild>
-          <button className="w-full px-4 py-3 hover:bg-neutral-700/20 transition-all duration-200 text-left focus:outline-none focus:bg-neutral-700/20">
+          <button className="w-full px-4 py-3 hover:bg-neutral-700/20 transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:bg-neutral-700/20">
             <div className="flex items-center justify-between min-w-0">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -148,10 +148,10 @@ export function ToolMessageDisplay({
 
               {/* Show waiting message if no tool message yet */}
               {!toolMessage && (
-                <div className="text-xs text-neutral-500 italic mt-4 p-3 bg-neutral-800/20 rounded-lg border border-neutral-700/30">
+                <div className="text-xs text-amber-400 italic mt-4 p-3 bg-amber-900/10 rounded-lg border border-amber-500/20">
                   <div className="flex items-center gap-2">
                     <Clock className="h-3 w-3 animate-pulse flex-shrink-0" />
-                    <span>Waiting for tool response...</span>
+                    <span>Executing tool...</span>
                   </div>
                 </div>
               )}

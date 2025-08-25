@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GitCompare, Home, Activity, TrendingUp, Zap, Loader2 } from 'lucide-react';
 import { useParallelSequences } from '@/hooks/useParallelSequences';
-import { SequenceStrategy, SequenceState, RoutedMessage } from '@/types/parallel';
+import { SequenceStrategy, SequenceState, RoutedMessage, LLMGeneratedSequence } from '@/types/parallel';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 
@@ -13,7 +13,49 @@ interface ParallelSequenceViewProps {
   onNewQuery: () => void;
 }
 
-// Strategy configurations with clean styling
+// Dynamic sequence configurations for LLM-generated sequences
+const getSequenceConfig = (sequence: LLMGeneratedSequence | undefined, fallbackStrategy?: SequenceStrategy) => {
+  if (sequence) {
+    // Use LLM-generated sequence data
+    return {
+      label: sequence.sequence_name,
+      icon: Activity, // Default icon, could be dynamic based on sequence type
+      color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', // Default color
+      description: sequence.rationale,
+    };
+  }
+  
+  // Fallback to legacy strategy config
+  const LEGACY_STRATEGY_CONFIG = {
+    [SequenceStrategy.THEORY_FIRST]: {
+      label: 'Theory First',
+      icon: Activity,
+      color: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      description: 'Academic research first, then practical applications',
+    },
+    [SequenceStrategy.MARKET_FIRST]: {
+      label: 'Market First',
+      icon: TrendingUp,
+      color: 'bg-green-500/10 text-green-400 border-green-500/20',
+      description: 'Market analysis first, then underlying theory',
+    },
+    [SequenceStrategy.FUTURE_BACK]: {
+      label: 'Future Back',
+      icon: Zap,
+      color: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+      description: 'Future trends first, working backward to current state',
+    },
+  };
+  
+  return fallbackStrategy ? LEGACY_STRATEGY_CONFIG[fallbackStrategy] : {
+    label: 'Unknown Sequence',
+    icon: Activity,
+    color: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+    description: 'Sequence configuration not available',
+  };
+};
+
+// Legacy strategy configurations (kept for backward compatibility)
 const STRATEGY_CONFIG = {
   [SequenceStrategy.THEORY_FIRST]: {
     label: 'Theory First',
@@ -91,7 +133,7 @@ interface SequenceColumnProps {
 }
 
 function SequenceColumn({ sequence, messages }: SequenceColumnProps) {
-  const config = STRATEGY_CONFIG[sequence.strategy];
+  const config = getSequenceConfig(sequence.sequence, sequence.strategy);
   const IconComponent = config.icon;
   const progress = sequence.progress.completion_percentage;
   
