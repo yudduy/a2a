@@ -1165,7 +1165,10 @@ async def execute_parallel_sequences(
     config: RunnableConfig,
     research_topic: str
 ) -> Dict[str, Any]:
-    """Execute all strategic sequences in parallel using ParallelExecutor.
+    """Execute all strategic sequences in parallel using SimpleSequentialExecutor.
+    
+    This function now uses the lightweight SimpleSequentialExecutor which executes
+    agents sequentially within each parallel path, replacing the heavy ParallelExecutor.
     
     Args:
         strategic_sequences: List of LLM-generated strategic sequences
@@ -1176,7 +1179,7 @@ async def execute_parallel_sequences(
         Dictionary containing results from all parallel sequence executions
     """
     import logging
-    from open_deep_research.sequencing.parallel_executor import parallel_executor_context
+    from open_deep_research.sequencing.simple_sequential_executor import execute_sequences_in_parallel
     
     logger = logging.getLogger(__name__)
     
@@ -1184,67 +1187,27 @@ async def execute_parallel_sequences(
         # Get configuration for parallel execution
         configurable = Configuration.from_runnable_config(config)
         
-        # Convert strategic sequences to the format expected by ParallelExecutor
-        sequence_patterns = []
-        for i, seq in enumerate(strategic_sequences):
-            # Create a simplified sequence pattern for the parallel executor
-            sequence_id = f"seq_{i}_{seq.sequence_name.lower().replace(' ', '_')}"
-            
-            # Convert to format expected by ParallelSequenceExecutor
-            # The ParallelExecutor expects string strategies, so we'll pass sequence names
-            sequence_patterns.append(seq.sequence_name)
+        # Limit sequences to max allowed
+        max_sequences = min(len(strategic_sequences), configurable.max_parallel_sequences)
+        sequences_to_execute = strategic_sequences[:max_sequences]
         
-        logger.info(f"Prepared {len(sequence_patterns)} sequences for parallel execution")
+        logger.info(f"Starting parallel execution of {len(sequences_to_execute)} sequences using SimpleSequentialExecutor")
         
-        # Use the parallel executor context manager
-        async with parallel_executor_context(
+        # Execute sequences in parallel using the new lightweight executor
+        parallel_results = await execute_sequences_in_parallel(
+            sequences=sequences_to_execute,
+            research_topic=research_topic,
             config=config,
-            max_concurrent=min(len(sequence_patterns), configurable.max_parallel_sequences),
-            timeout_seconds=configurable.parallel_execution_timeout
-        ) as executor:
-            
-            # Execute sequences in parallel with real-time streaming
-            result = await executor.execute_sequences_parallel(
-                research_topic=research_topic,
-                sequences=sequence_patterns[:configurable.max_parallel_sequences]  # Limit to max allowed
-            )
-            
-            logger.info(f"Parallel execution completed with {result.success_rate:.1f}% success rate")
-            
-            # Convert ParallelExecutionResult to a simpler format
-            parallel_results = {
-                "execution_id": result.execution_id,
-                "research_topic": result.research_topic,
-                "total_duration": result.total_duration,
-                "success_rate": result.success_rate,
-                "sequence_results": {},
-                "best_strategy": result.best_performing_strategy,
-                "unique_insights": result.unique_insights_across_sequences,
-                "failed_sequences": result.failed_sequences,
-                "error_summary": result.error_summary
-            }
-            
-            # Extract key findings from each successful sequence
-            for seq_id, seq_result in result.sequence_results.items():
-                parallel_results["sequence_results"][seq_id] = {
-                    "comprehensive_findings": seq_result.comprehensive_findings,
-                    "agent_results": [
-                        {
-                            "agent_type": agent_result.agent_type.value,
-                            "key_insights": agent_result.key_insights,
-                            "execution_duration": agent_result.execution_duration
-                        }
-                        for agent_result in seq_result.agent_results
-                    ],
-                    "total_duration": seq_result.total_duration,
-                    "productivity_score": seq_result.overall_productivity_metrics.tool_productivity
-                }
-            
-            return parallel_results
+            max_concurrent=max_sequences
+        )
+        
+        logger.info(f"Parallel execution completed with {parallel_results.get('success_rate', 0):.1f}% success rate")
+        
+        return parallel_results
             
     except Exception as e:
         logger.error(f"Parallel sequence execution failed: {e}")
-        # Return a minimal error result
+        # Return a minimal error result compatible with existing error handling
         return {
             "execution_id": "failed",
             "research_topic": research_topic,
@@ -1253,7 +1216,9 @@ async def execute_parallel_sequences(
             "sequence_results": {},
             "error_message": str(e),
             "failed_sequences": list(range(len(strategic_sequences))),
-            "error_summary": {i: str(e) for i in range(len(strategic_sequences))}
+            "error_summary": {i: str(e) for i in range(len(strategic_sequences))},
+            "best_strategy": None,
+            "unique_insights_across_sequences": []
         }
 
 
