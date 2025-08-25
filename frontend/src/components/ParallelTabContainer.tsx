@@ -1,26 +1,18 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Loader2, Pause, Play, RotateCcw, GitBranch } from 'lucide-react';
+import { CheckCircle, Loader2, Pause, RotateCcw, GitBranch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LLMGeneratedSequence, RoutedMessage } from '@/types/parallel';
 import { TypedMarkdown } from '@/components/ui/typed-markdown';
 import { ActivityTimeline, ProcessedEvent } from '@/components/ActivityTimeline';
 import ReactMarkdown from 'react-markdown';
-import { assignStrategyTheme, StrategyTheme, getThemeColors } from '@/lib/strategy-themes';
+import { assignStrategyTheme, StrategyTheme } from '@/lib/strategy-themes';
 
 // ========================================
 // Component Interfaces
 // ========================================
 
-interface TabState {
-  id: string;
-  name: string;
-  status: 'initializing' | 'typing' | 'paused' | 'completed' | 'error';
-  messages: RoutedMessage[];
-  progress: number;
-  isActive: boolean;
-}
 
 interface ParallelTabContainerProps {
   sequences: LLMGeneratedSequence[];

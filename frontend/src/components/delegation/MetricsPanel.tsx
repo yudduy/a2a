@@ -53,11 +53,12 @@ export function MetricsPanel({
     return `${(seconds / 60).toFixed(1)}m`;
   };
 
-  const formatStrategy = (strategy: SequenceStrategy): string => {
-    return strategy.replace('_', ' ').toUpperCase();
+  const formatStrategy = (strategy?: SequenceStrategy): string => {
+    return strategy ? strategy.replace('_', ' ').toUpperCase() : 'UNKNOWN';
   };
 
-  const getStrategyColor = (strategy: SequenceStrategy): string => {
+  const getStrategyColor = (strategy?: SequenceStrategy): string => {
+    if (!strategy) return 'bg-neutral-500/20 text-neutral-300 border-neutral-500/30';
     switch (strategy) {
       case SequenceStrategy.THEORY_FIRST:
         return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
@@ -248,7 +249,7 @@ export function MetricsPanel({
                       <span className="text-neutral-400">Processing Time</span>
                     </div>
                     <div className="font-medium text-neutral-200">
-                      {formatDuration(sequence.metrics.processing_time)}
+                      {formatDuration(sequence.metrics.research_duration)}
                     </div>
                   </div>
 

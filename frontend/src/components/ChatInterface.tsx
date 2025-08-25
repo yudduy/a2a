@@ -262,12 +262,12 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
           {group.toolCalls.length > 0 && (
             <div className="mt-4 space-y-3">
               {group.toolCalls.map((toolCall, index) => {
-                const toolResult = findToolMessageForCall(toolCall, allMessages);
+                const toolResult = findToolMessageForCall(allMessages, toolCall.id || '');
                 return (
                   <ToolMessageDisplay
                     key={toolCall.id || index}
                     toolCall={toolCall}
-                    toolMessage={toolResult}
+                    toolMessage={toolResult || undefined}
                     isExpanded={false}
                     onToggle={() => {}}
                   />
@@ -311,7 +311,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   
   // Activity tracking
   liveActivityEvents = [],
-  historicalActivities = {},
   
   // Parallel functionality - unified in-place tabs only
   parallelTabsState,
@@ -405,8 +404,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       <div className="flex-1 min-h-0">
         <ScrollArea className="h-full w-full" ref={scrollAreaRef}>
           <div className="p-4 md:p-6 space-y-2 max-w-4xl mx-auto pt-16 pb-4 min-h-full">
-              {messageGroups.map((group, index) => {
-                const isLast = index === messageGroups.length - 1;
+              {messageGroups.map((group) => {
                 return (
                   <div key={group.id} className="space-y-3">
                     <div

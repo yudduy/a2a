@@ -73,11 +73,12 @@ export function DelegationDashboard({
     onRestart();
   }, [onRestart]);
 
-  const formatStrategy = (strategy: SequenceStrategy): string => {
-    return strategy.replace('_', ' ').toUpperCase();
+  const formatStrategy = (strategy?: SequenceStrategy): string => {
+    return strategy ? strategy.replace('_', ' ').toUpperCase() : 'UNKNOWN';
   };
 
-  const getStrategyDescription = (strategy: SequenceStrategy): string => {
+  const getStrategyDescription = (strategy?: SequenceStrategy): string => {
+    if (!strategy) return 'Unknown analysis pattern';
     switch (strategy) {
       case SequenceStrategy.THEORY_FIRST:
         return 'Academic → Industry → Technical analysis pattern';
@@ -90,7 +91,8 @@ export function DelegationDashboard({
     }
   };
 
-  const getStrategyIcon = (strategy: SequenceStrategy): React.JSX.Element => {
+  const getStrategyIcon = (strategy?: SequenceStrategy): React.JSX.Element => {
+    if (!strategy) return <></>;  
     switch (strategy) {
       case SequenceStrategy.THEORY_FIRST:
         return <Activity className="h-4 w-4" />;

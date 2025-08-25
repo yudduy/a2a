@@ -87,7 +87,7 @@ function createLazyComponent<T extends ComponentType<any>>(
 ) {
   const LazyComponent = lazy(importFn);
   
-  const WrappedComponent = React.forwardRef<any, React.ComponentProps<T>>((props, ref) => {
+  const WrappedComponent = React.forwardRef<any, React.ComponentProps<T> & { key?: number }>((props, ref) => {
     const [isPreloading, setIsPreloading] = React.useState(false);
     const [hasError, setHasError] = React.useState(false);
     const [retryCount, setRetryCount] = React.useState(0);
@@ -165,7 +165,7 @@ function createLazyComponent<T extends ComponentType<any>>(
           <Suspense 
             fallback={<LoadingFallback componentName={componentName} isPreloading={isPreloading} />}
           >
-            <LazyComponent {...props} ref={ref} key={retryCount} />
+            <LazyComponent {...(props as any)} ref={ref} key={retryCount} />
           </Suspense>
         </ResearchErrorBoundary>
       </div>
@@ -214,32 +214,32 @@ export const LazyLiveMetricsBar = createLazyComponent(
 
 // Delegation components
 export const LazyDelegationDashboard = createLazyComponent(
-  () => import('@/components/delegation/DelegationDashboard'),
+  () => import('@/components/delegation/DelegationDashboard').then(module => ({ default: module.DelegationDashboard })),
   'DelegationDashboard',
   'hover'
 );
 
 export const LazyMetricsPanel = createLazyComponent(
-  () => import('@/components/delegation/MetricsPanel'),
+  () => import('@/components/delegation/MetricsPanel').then(module => ({ default: module.MetricsPanel })),
   'MetricsPanel',
   'visible'
 );
 
 // Utility components
 export const LazyWelcomeScreen = createLazyComponent(
-  () => import('@/components/WelcomeScreen'),
+  () => import('@/components/WelcomeScreen').then(module => ({ default: module.WelcomeScreen })),
   'WelcomeScreen',
   'immediate'
 );
 
 export const LazyChatInterface = createLazyComponent(
-  () => import('@/components/ChatInterface'),
+  () => import('@/components/ChatInterface').then(module => ({ default: module.ChatInterface })),
   'ChatInterface',
   'hover'
 );
 
 export const LazyActivityTimeline = createLazyComponent(
-  () => import('@/components/ActivityTimeline'),
+  () => import('@/components/ActivityTimeline').then(module => ({ default: module.ActivityTimeline })),
   'ActivityTimeline',
   'idle'
 );
@@ -272,9 +272,9 @@ export function useComponentPreloader() {
 
   const preloadResearchComponents = React.useCallback(() => {
     const componentsToPreload = [
-      { name: 'ParallelChatGrid', fn: LazyParallelChatGrid.preload },
-      { name: 'SequenceChat', fn: LazySequenceChat.preload },
-      { name: 'LiveMetricsBar', fn: LazyLiveMetricsBar.preload },
+      { name: 'ParallelChatGrid', fn: (LazyParallelChatGrid as any).preload },
+      { name: 'SequenceChat', fn: (LazySequenceChat as any).preload },
+      { name: 'LiveMetricsBar', fn: (LazyLiveMetricsBar as any).preload },
     ];
 
     componentsToPreload.forEach(({ name, fn }) => {
@@ -284,9 +284,9 @@ export function useComponentPreloader() {
 
   const preloadDelegationComponents = React.useCallback(() => {
     const componentsToPreload = [
-      { name: 'DelegationDashboard', fn: LazyDelegationDashboard.preload },
-      { name: 'MetricsPanel', fn: LazyMetricsPanel.preload },
-      { name: 'ChatInterface', fn: LazyChatInterface.preload },
+      { name: 'DelegationDashboard', fn: (LazyDelegationDashboard as any).preload },
+      { name: 'MetricsPanel', fn: (LazyMetricsPanel as any).preload },
+      { name: 'ChatInterface', fn: (LazyChatInterface as any).preload },
     ];
 
     componentsToPreload.forEach(({ name, fn }) => {

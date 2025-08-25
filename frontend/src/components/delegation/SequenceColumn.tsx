@@ -46,7 +46,8 @@ export function SequenceColumn({
   const currentAgentIndex = current_agent ? agentProgression.indexOf(current_agent) : -1;
 
 // Define the agent progression based on strategy
-function getAgentProgression(strategy: SequenceStrategy): AgentType[] {
+function getAgentProgression(strategy?: SequenceStrategy): AgentType[] {
+  if (!strategy) return [];
   switch (strategy) {
     case SequenceStrategy.THEORY_FIRST:
       return [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS];
@@ -59,7 +60,8 @@ function getAgentProgression(strategy: SequenceStrategy): AgentType[] {
   }
 }
 
-  const formatStrategy = (strategy: SequenceStrategy): string => {
+  const formatStrategy = (strategy?: SequenceStrategy): string => {
+    if (!strategy) return 'UNKNOWN';
     return strategy.replace('_', ' ').toUpperCase();
   };
 
@@ -91,7 +93,8 @@ function getAgentProgression(strategy: SequenceStrategy): AgentType[] {
     }
   };
 
-  const getStrategyColor = (strategy: SequenceStrategy): string => {
+  const getStrategyColor = (strategy?: SequenceStrategy): string => {
+    if (!strategy) return 'bg-neutral-500/20 text-neutral-300 border-neutral-500/30';
     switch (strategy) {
       case SequenceStrategy.THEORY_FIRST:
         return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
