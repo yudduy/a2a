@@ -23,6 +23,7 @@ import { ToolCall } from '@/types/tools';
 import { TypedMarkdown } from '@/components/ui/typed-markdown';
 import { ThinkingSections } from '@/components/ui/collapsible-thinking';
 import ParallelTabContainer from '@/components/ParallelTabContainer';
+import SupervisorAnnouncementMessage from '@/components/SupervisorAnnouncementMessage';
 import { LLMGeneratedSequence, RoutedMessage, SequenceState, SequenceStrategy, AgentType } from '@/types/parallel';
 import { EnhancedErrorBoundary } from '@/components/ui/enhanced-error-boundary';
 
@@ -1167,20 +1168,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           mdComponents={mdComponents}
                         />
                       ) : group.type === 'supervisor_announcement' ? (
-                        <div className="relative break-words flex flex-col group max-w-[90%] md:max-w-[85%] w-full rounded-xl p-3 shadow-sm bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10 border border-blue-500/20 text-neutral-100 min-h-[56px] overflow-hidden">
-                          <div className="text-center p-4">
-                            <p className="text-blue-400 font-semibold mb-2">Research Sequences Detected</p>
-                            <p className="text-sm text-neutral-300 mb-3">
-                              The supervisor has generated {group.sequences?.length || 0} parallel research sequences.
-                            </p>
-                            <button 
-                              onClick={onTabsInitialized}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm"
-                            >
-                              Launch Parallel Research
-                            </button>
-                          </div>
-                        </div>
+                        <SupervisorAnnouncementMessage
+                          sequences={group.sequences || []}
+                          onTabsInitialized={onTabsInitialized}
+                          isLoading={isLoading}
+                          researchQuery={group.primaryMessage?.content?.toString() || "research request"}
+                          className="max-w-full"
+                        />
                       ) : (
                         <AiMessageBubble
                           group={group}
