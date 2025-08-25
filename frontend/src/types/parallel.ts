@@ -322,10 +322,11 @@ export interface UseParallelSequencesReturn {
   // Message access
   getSequenceMessages: (sequenceId: string) => RoutedMessage[];
   getSequenceProgress: (sequenceId: string) => SequenceProgress | null;
+  routeMessage: (message: RoutedMessage) => void;
   
   // Connection status
   connectionState: ConnectionState;
-  subscriptionStatus: Record<string, 'active' | 'pending' | 'failed'>;
+  subscriptionStatus?: Record<string, 'active' | 'pending' | 'failed'>;
 }
 
 // ========================================

@@ -24,7 +24,6 @@
  */
 
 // Main components
-export { ParallelResearchInterface } from './ParallelResearchInterface';
 export { ParallelChatGrid } from './ParallelChatGrid';
 export { SequenceChat } from './SequenceChat';
 export { QueryAnalyzer } from './QueryAnalyzer';

@@ -65,13 +65,15 @@ export default function App() {
     }
   }, [parallelTabsState.isActive, parallelTabsState.sequences]);
   
-  // Parallel sequences for research streams
+  // Parallel sequences for research streams - simplified hook
+  const parallelSequences = useParallelSequences();
   const { 
     start: startParallelResearch,
     stop: stopParallelResearch,
     isLoading: isParallelLoading,
-    changeActiveSequence
-  } = useParallelSequences();
+    changeActiveSequence,
+    routeMessage: routeParallelMessage
+  } = parallelSequences;
 
   // Map backend events to meaningful UI states
   const mapBackendEventToUIState = useCallback((chunk: any): ProcessedEvent | null => {
@@ -274,9 +276,22 @@ export default function App() {
         return; // Don't process as regular activity event
       }
       
-      // Check if this is a message for parallel tabs
+      // Check if this is a message for parallel tabs - route through simplified hook
       if (data && typeof data === 'object' && data.sequence_id && parallelTabsState.isActive) {
         handleParallelMessage(data);
+        // Also route to the parallel sequences hook for state management
+        routeParallelMessage({
+          message_id: `msg_${data.sequence_id}_${Date.now()}`,
+          sequence_id: data.sequence_id,
+          sequence_name: data.sequence_name || 'Unknown Sequence',
+          message_type: data.message_type || 'progress',
+          timestamp: Date.now(),
+          content: data.content || data,
+          sequence_index: parallelTabsState.sequences.findIndex(s => s.sequence_id === data.sequence_id),
+          routing_timestamp: Date.now(),
+          current_agent: data.current_agent,
+          agent_type: data.agent_type,
+        });
         return; // Don't process as regular activity event when routing to tabs
       }
 
@@ -300,7 +315,7 @@ export default function App() {
     } catch (error) {
       console.warn('Error processing update event:', error);
     }
-  }, [mapBackendEventToUIState, localMessages, startParallelResearch, parallelTabsState.isActive, handleParallelMessage]);
+  }, [mapBackendEventToUIState, localMessages, startParallelResearch, parallelTabsState.isActive, handleParallelMessage, routeParallelMessage]);
 
   const handleLangChainEvent = useCallback((data: any) => {
     try {
@@ -345,9 +360,22 @@ export default function App() {
           return;
         }
         
-        // Check if this is a message for parallel tabs
+        // Check if this is a message for parallel tabs - route through simplified hook  
         if (data.data && data.data.sequence_id && parallelTabsState.isActive) {
           handleParallelMessage(data.data);
+          // Also route to the parallel sequences hook for state management
+          routeParallelMessage({
+            message_id: `msg_${data.data.sequence_id}_${Date.now()}`,
+            sequence_id: data.data.sequence_id,
+            sequence_name: data.data.sequence_name || 'Unknown Sequence',
+            message_type: data.data.message_type || 'progress',
+            timestamp: Date.now(),
+            content: data.data.content || data.data,
+            sequence_index: parallelTabsState.sequences.findIndex(s => s.sequence_id === data.data.sequence_id),
+            routing_timestamp: Date.now(),
+            current_agent: data.data.current_agent,
+            agent_type: data.data.agent_type,
+          });
           return; // Don't process as regular activity event when routing to tabs
         }
 
@@ -432,7 +460,7 @@ export default function App() {
       };
       setLiveActivityEvents(prev => [...prev, errorEvent]);
     }
-  }, [localMessages, startParallelResearch, parallelTabsState.isActive, handleParallelMessage]);
+  }, [localMessages, startParallelResearch, parallelTabsState.isActive, handleParallelMessage, routeParallelMessage]);
 
   const handleStreamError = useCallback((error: unknown) => {
     console.error('Stream error:', error);

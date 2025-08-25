@@ -211,11 +211,6 @@ export const LazyLiveMetricsBar = createLazyComponent(
   'immediate'
 );
 
-export const LazyParallelResearchInterface = createLazyComponent(
-  () => import('@/components/research/ParallelResearchInterface'),
-  'ParallelResearchInterface',
-  'immediate'
-);
 
 // Delegation components
 export const LazyDelegationDashboard = createLazyComponent(
@@ -401,7 +396,6 @@ export default {
   LazyQueryAnalyzer,
   LazyComparisonSummary,
   LazyLiveMetricsBar,
-  LazyParallelResearchInterface,
   LazyDelegationDashboard,
   LazyMetricsPanel,
   LazyWelcomeScreen,
