@@ -5,7 +5,6 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { useParallelSequences } from '@/hooks/useParallelSequences';
 import { Message } from '@langchain/langgraph-sdk';
 import { LLMGeneratedSequence, RoutedMessage } from '@/types/parallel';
-import IntegrationTest from '@/components/demo/IntegrationTest';
 import { EnhancedErrorBoundary } from '@/components/ui/enhanced-error-boundary';
 // Removed unused imports: SequenceObserver, Button, Tabs, MessageSquare, BarChart3
 
@@ -18,8 +17,6 @@ interface ParallelTabsState {
 }
 
 export default function App() {
-  // Test mode detection - simple URL-based routing
-  const isIntegrationTestMode = window.location.search.includes('test=integration');
   
   // Chat state
   const [localMessages, setLocalMessages] = useState<(Message & { _locallyAdded?: boolean })[]>([]);
@@ -409,10 +406,6 @@ export default function App() {
     stopParallelResearch();
   }, [streamStop, stopParallelResearch]);
 
-  // Render test mode if requested
-  if (isIntegrationTestMode) {
-    return <IntegrationTest />;
-  }
 
   return (
     <EnhancedErrorBoundary 
