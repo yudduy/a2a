@@ -251,7 +251,7 @@ export default function App() {
     stop: streamStop,
   } = useStream({
     assistantId: 'Deep Researcher',
-    apiUrl: import.meta.env.DEV ? 'http://localhost:2024' : (import.meta.env.VITE_API_URL || 'https://your-production-api-host.com'),
+    apiUrl: import.meta.env.DEV ? 'http://127.0.0.1:2024' : (import.meta.env.VITE_API_URL || 'https://your-production-api-host.com'),
     threadId,
     // streamMode: 'messages' as const, // Commented out as this property doesn't exist in the hook
     onThreadId: setThreadId,

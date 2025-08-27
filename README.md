@@ -2,21 +2,19 @@
 
 <img width="1388" height="298" alt="full_diagram" src="https://github.com/user-attachments/assets/12a2371b-8be2-4219-9b48-90503eb43c69" />
 
-Deep research has broken out as one of the most popular agent applications. This is a simple, configurable, fully open source deep research agent that works across many model providers, search tools, and MCP servers. It's performance is on par with many popular deep research agents ([see Deep Research Bench leaderboard](https://huggingface.co/spaces/Ayanami0730/DeepResearch-Leaderboard)).
+An advanced, configurable, and fully open-source deep research agent that leverages multiple AI model providers, search APIs, and MCP (Model Context Protocol) servers. Built on LangGraph with parallel processing capabilities for comprehensive automated research.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![GitHub stars](https://img.shields.io/github/stars/langchain-ai/open_deep_research.svg)](https://github.com/langchain-ai/open_deep_research/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/langchain-ai/open_deep_research.svg)](https://github.com/langchain-ai/open_deep_research/issues)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/langchain-ai/open_deep_research/ci.yml?branch=main)](https://github.com/langchain-ai/open_deep_research/actions)
 
 <img width="817" height="666" alt="Screenshot 2025-07-13 at 11 21 12 PM" src="https://github.com/user-attachments/assets/052f2ed3-c664-4a4f-8ec2-074349dcaa3f" />
 
 ### 🔥 Recent Updates
 
-**August 14, 2025**: See our free course [here](https://academy.langchain.com/courses/deep-research-with-langgraph) (and course repo [here](https://github.com/langchain-ai/deep_research_from_scratch)) on building open deep research.
-
-**August 7, 2025**: Added GPT-5 and updated the Deep Research Bench evaluation w/ GPT-5 results.
-
-**August 2, 2025**: Achieved #6 ranking on the [Deep Research Bench Leaderboard](https://huggingface.co/spaces/Ayanami0730/DeepResearch-Leaderboard) with an overall score of 0.4344. 
-
-**July 30, 2025**: Read about the evolution from our original implementations to the current version in our [blog post](https://rlancemartin.github.io/2025/07/30/bitter_lesson/).
-
-**July 16, 2025**: Read more in our [blog](https://blog.langchain.com/open-deep-research/) and watch our [video](https://www.youtube.com/watch?v=agGiWUpxkhg) for a quick overview.
+**Recent**: Added support for multiple AI model providers and implemented parallel agent orchestration for improved performance
 
 ### 🚀 Quickstart
 
@@ -147,3 +145,57 @@ The `src/legacy/` folder contains two earlier implementations that provide alter
 - **Parallel Processing**: Multiple researchers work simultaneously
 - **Speed Optimized**: Faster report generation through concurrency
 - **MCP Support**: Extensive Model Context Protocol integration
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+
+- 🐛 **Bug Reports**: Help us identify and fix issues
+- 🚀 **Feature Requests**: Suggest new capabilities and improvements
+- 💻 **Code Contributions**: Submit pull requests with enhancements
+- 📚 **Documentation**: Improve guides, examples, and API docs
+- 🧪 **Testing**: Add test cases and improve coverage
+
+### Quick Contribution Steps
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes and add tests
+4. Run the test suite (`python tests/run_evaluate.py`)
+5. Submit a pull request with a clear description
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🛡️ Security
+
+Security is a top priority. Please review our [Security Policy](SECURITY.md) for:
+
+- 🔐 **Reporting Vulnerabilities**: How to responsibly disclose security issues
+- 🛠️ **Best Practices**: Guidelines for secure deployment and usage
+- 📋 **Supported Versions**: Which versions receive security updates
+
+## 🙋‍♀️ Support & Community
+
+- **Issues**: [GitHub Issues](https://github.com/langchain-ai/open_deep_research/issues) for bug reports and feature requests
+- **Discussions**: [GitHub Discussions](https://github.com/langchain-ai/open_deep_research/discussions) for Q&A and community chat
+- **Documentation**: [Full Documentation](https://python.langchain.com/docs/integrations/tools/open_deep_research) 
+- **Examples**: Check the `examples/` directory for usage patterns
+
+## ✨ Features
+
+- 🤖 **Multi-Model Support** - Works with OpenAI, Anthropic, Google, and other providers
+- 🔍 **Advanced Search** - Integrates with Tavily, native web search, and MCP servers
+- ⚡ **Parallel Processing** - Optimized agent orchestration for better performance
+- 🛠️ **Highly Configurable** - Customize models, search APIs, and agent behavior
+
+## 📊 Project Stats
+
+![GitHub repo size](https://img.shields.io/github/repo-size/langchain-ai/open_deep_research)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/langchain-ai/open_deep_research)
+![GitHub contributors](https://img.shields.io/github/contributors/langchain-ai/open_deep_research)
+
+---
+
+**Built with ❤️ by the LangChain team and open source contributors**

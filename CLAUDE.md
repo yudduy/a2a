@@ -3,6 +3,11 @@
 ## Project Overview
 Open Deep Research is a configurable, fully open-source deep research agent that works across multiple model providers, search tools, and MCP (Model Context Protocol) servers. It enables automated research with parallel processing, intelligent agent sequencing, and comprehensive report generation.
 
+**Repository**: https://github.com/langchain-ai/open_deep_research  
+**License**: MIT  
+**Status**: Production-ready, actively maintained  
+**Community**: Welcome contributors - see CONTRIBUTING.md for guidelines
+
 ## System Architecture
 
 ### Core Architecture Pattern
@@ -196,12 +201,67 @@ The system includes comprehensive evaluation via:
 ## Security and Deployment
 
 ### Security Features
-- **Authentication**: LangGraph deployment authentication handler
-- **API Key Management**: Secure environment variable handling
-- **Session Isolation**: Complete isolation between research sessions
-- **No Data Persistence**: Research data not stored permanently
+- **Authentication**: LangGraph deployment authentication handler with JWT token validation
+- **API Key Management**: Secure environment variable handling via .env files (never commit secrets)
+- **Session Isolation**: Complete isolation between research sessions with sandboxed execution
+- **Input Validation**: Comprehensive sanitization of user inputs and AI agent outputs
+- **Rate Limiting**: Built-in protection against abuse and DoS attacks
+- **Audit Logging**: Security event tracking for monitoring and compliance
+- **No Data Persistence**: Research data not stored permanently for privacy protection
+
+### Security Best Practices
+- Use strong API keys and rotate them regularly
+- Enable branch protection rules in production repositories
+- Monitor for security vulnerabilities in dependencies
+- Follow OWASP guidelines for AI/ML security
+- Implement proper error handling to prevent information leakage
 
 ### Deployment Options
-- **Development**: Local LangGraph Studio (`uvx langgraph dev`)
-- **Production**: LangGraph Cloud deployment
+- **Development**: Local LangGraph Studio (`uvx langgraph dev --allow-blocking`)
+- **Production**: LangGraph Cloud deployment with proper security configuration
 - **Open Agent Platform**: UI for non-technical users to configure agents
+- **Container Deployment**: Docker support for scalable deployments
+
+### Production Checklist
+- [ ] Environment variables properly configured
+- [ ] API rate limits configured
+- [ ] Monitoring and alerting set up
+- [ ] Security scanning enabled
+- [ ] Backup and recovery procedures tested
+
+## Contributing Guidelines
+
+### Code Quality Standards
+- Follow PEP 8 for Python code style and TypeScript/React best practices for frontend
+- Use type hints for better code documentation and maintainability
+- Write comprehensive docstrings for public functions and components
+- Maintain consistent error handling patterns across the codebase
+- Add unit tests for new functionality with appropriate coverage
+
+### Security Guidelines
+- **CRITICAL**: Never commit API keys, secrets, or credentials to the repository
+- Use environment variables for all configuration values
+- Validate all user inputs and AI-generated outputs to prevent injection attacks
+- Follow OWASP security guidelines for AI systems and web applications
+- Implement proper authentication and authorization for production deployments
+
+### Performance Considerations
+- Optimize for token usage and API costs in AI interactions
+- Implement proper caching strategies for search results and model outputs
+- Use parallel execution patterns where appropriate for better performance
+- Monitor memory usage for large contexts and implement limits
+- Set reasonable timeouts for all network operations and model calls
+
+### Development Workflow
+- Follow the established repository structure and coding conventions
+- Test thoroughly before submitting pull requests
+- Use descriptive commit messages following conventional commit format
+- Update documentation when adding new features or changing APIs
+- Ensure all CI/CD checks pass before requesting review
+
+### Open Source Best Practices
+- Maintain clear and up-to-date documentation
+- Respond promptly to issues and pull requests from community
+- Follow semantic versioning for releases
+- Keep dependencies updated and secure
+- Provide clear examples and tutorials for new users

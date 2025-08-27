@@ -67,3 +67,26 @@ tmp/
 temp/
 
 .langgraph_api
+
+# Claude Code specific
+.claude/
+
+# Security and secrets
+*.key
+*.secret
+*credentials*
+config.json
+secrets.json
+.env*
+!.env.example
+
+# Additional Python patterns
+*.pyo
+*.pyd
+
+# OS specific
+Thumbs.db
+
+# Additional test coverage
+.nyc_output/
+coverage/
