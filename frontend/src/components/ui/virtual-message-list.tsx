@@ -79,7 +79,7 @@ const VirtualMessageList = memo<VirtualMessageListProps>(({
 }) => {
   const listRef = useRef<List>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const userScrollTimeoutRef = useRef<NodeJS.Timeout>();
+  const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastMessageCountRef = useRef(messages.length);
 
   // Memoized item data to prevent unnecessary re-renders
@@ -130,12 +130,14 @@ const VirtualMessageList = memo<VirtualMessageListProps>(({
   }, [messages.length]);
 
   // Expose scroll to bottom function
-  React.useImperativeHandle(listRef, () => ({
+  const scrollAPI = {
     scrollToBottom,
     scrollToItem: (index: number, align?: 'auto' | 'smart' | 'center' | 'end' | 'start') => {
       listRef.current?.scrollToItem(index, align);
     },
-  }));
+  };
+  
+  React.useImperativeHandle(listRef, () => scrollAPI as any);
 
   return (
     <div className={cn("relative", className)}>

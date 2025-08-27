@@ -1,3 +1,5 @@
+import React from 'react';
+
 /**
  * Production Performance Instrumentation System
  * 
@@ -334,7 +336,7 @@ class PerformanceInstrumentation {
             { name: 'dns-lookup', value: entry.domainLookupEnd - entry.domainLookupStart },
             { name: 'tcp-connection', value: entry.connectEnd - entry.connectStart },
             { name: 'request-response', value: entry.responseEnd - entry.requestStart },
-            { name: 'dom-processing', value: entry.domComplete - entry.domLoading },
+            { name: 'dom-processing', value: entry.domComplete - (entry as any).domLoading },
             { name: 'load-complete', value: entry.loadEventEnd - entry.loadEventStart },
           ];
 
@@ -470,7 +472,7 @@ class PerformanceInstrumentation {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       const startTime = performance.now();
-      const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
       const method = args[1]?.method || 'GET';
 
       try {

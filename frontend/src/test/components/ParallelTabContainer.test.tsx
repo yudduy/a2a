@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import ParallelTabContainer from './ParallelTabContainer';
+import ParallelTabContainer from '@/components/ParallelTabContainer';
 import { LLMGeneratedSequence, RoutedMessage } from '@/types/parallel';
 
 // Mock the UI components and dependencies

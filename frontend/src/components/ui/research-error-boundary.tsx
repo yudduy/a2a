@@ -136,11 +136,11 @@ export class ResearchErrorBoundary extends Component<
     console.error('Research error caught:', error, errorInfo);
     
     const researchErrorInfo: ResearchErrorInfo = {
-      componentStack: errorInfo.componentStack,
+      componentStack: errorInfo.componentStack || 'Unknown',
       errorBoundary: 'ResearchErrorBoundary',
       errorMessage: error.message,
-      sequence: this.props.sequenceStrategy,
-      strategy: this.props.sequenceStrategy,
+      sequence: this.props.sequenceStrategy || 'unknown',
+      strategy: this.props.sequenceStrategy || 'unknown',
       timestamp: Date.now(),
       researchQuery: this.props.researchQuery,
       performanceMetrics: this.getPerformanceMetrics(),

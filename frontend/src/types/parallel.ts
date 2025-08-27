@@ -91,6 +91,7 @@ export interface StreamMessage {
 export interface RoutedMessage extends StreamMessage {
   sequence_index: number; // 0, 1, or 2 for the three parallel sequences
   routing_timestamp: number;
+  tool_calls?: any[];     // Tool calls associated with this message
 }
 
 /**

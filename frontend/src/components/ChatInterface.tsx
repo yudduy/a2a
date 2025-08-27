@@ -6,16 +6,16 @@ import { InputForm } from '@/components/InputForm';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
-import {
-  ProcessedEvent,
-} from '@/components/ActivityTimeline';
 import { ToolMessageDisplay } from '@/components/ToolMessageDisplay';
+import { MessageContentParser } from '@/types/messages';
+import { ThinkingSections } from '@/components/ui/collapsible-thinking';
 import {
   extractToolCallsFromMessage,
   findToolMessageForCall,
 } from '@/types/messages';
 import { ToolCall } from '@/types/tools';
-import ParallelTabContainer from '@/components/ParallelTabContainer';
+// import ParallelTabContainer from '@/components/ParallelTabContainer';
+import ParallelResearchInterface from '@/components/ParallelResearchInterface';
 import SupervisorAnnouncementMessage from '@/components/SupervisorAnnouncementMessage';
 import { LLMGeneratedSequence, RoutedMessage } from '@/types/parallel';
 import { EnhancedErrorBoundary } from '@/components/ui/enhanced-error-boundary';
@@ -33,9 +33,7 @@ export interface ChatInterfaceProps {
   onCancel?: () => void;
   onReset?: () => void;
   
-  // Activity and events
-  liveActivityEvents?: ProcessedEvent[];
-  historicalActivities?: Record<string, ProcessedEvent[]>;
+  // Activity and events - removed for simplicity
   
   // In-place parallel functionality (unified paradigm)
   parallelTabsState?: ParallelTabsState;
@@ -95,9 +93,17 @@ const groupMessages = (messages: Message[]): MessageGroup[] => {
       
       // Check if this is a supervisor announcement with sequences
       const messageContent = typeof message.content === 'string' ? message.content : '';
+      // Enhanced detection for supervisor announcements - look for broader patterns
       const hasSequences = messageContent.includes('research sequences') || 
                           messageContent.includes('parallel analysis') ||
-                          messageContent.includes('strategic approach');
+                          messageContent.includes('strategic approach') ||
+                          messageContent.includes('sequences') ||
+                          messageContent.includes('parallel') ||
+                          messageContent.includes('strategic') ||
+                          messageContent.includes('supervisor') ||
+                          messageContent.includes('generated') ||
+                          // Also check if we already have sequences in state - this indicates a supervisor announcement
+                          toolCalls.length > 0; // Supervisor often uses tools
       
       if (hasSequences) {
         // This is a supervisor announcement
@@ -244,6 +250,22 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
     ? group.primaryMessage.content 
     : JSON.stringify(group.primaryMessage.content);
 
+  // Parse thinking sections from message content
+  const parsedContent = MessageContentParser.parse(group.primaryMessage);
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
+
+  const toggleThinking = (thinkingId: string) => {
+    setExpandedThinking(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(thinkingId)) {
+        newSet.delete(thinkingId);
+      } else {
+        newSet.add(thinkingId);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <div className="flex items-start gap-3 w-full max-w-none">
       <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-1">
@@ -253,9 +275,37 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
         <div className="bg-neutral-800 rounded-2xl p-4 shadow-sm max-w-none">
           {/* Main content */}
           <div className="prose prose-invert max-w-none">
-            <ReactMarkdown components={mdComponents}>
-              {messageContent}
-            </ReactMarkdown>
+            {/* Pre-thinking content */}
+            {parsedContent.preThinking && (
+              <ReactMarkdown components={mdComponents}>
+                {parsedContent.preThinking}
+              </ReactMarkdown>
+            )}
+            
+            {/* Thinking sections */}
+            {parsedContent.thinkingSections.length > 0 && (
+              <div className="my-4">
+                <ThinkingSections
+                  sections={parsedContent.thinkingSections}
+                  expandedSections={expandedThinking}
+                  onToggleSection={toggleThinking}
+                />
+              </div>
+            )}
+            
+            {/* Post-thinking content */}
+            {parsedContent.postThinking && (
+              <ReactMarkdown components={mdComponents}>
+                {parsedContent.postThinking}
+              </ReactMarkdown>
+            )}
+            
+            {/* Fallback: Show full content if no thinking sections were found */}
+            {parsedContent.thinkingSections.length === 0 && !parsedContent.preThinking && !parsedContent.postThinking && (
+              <ReactMarkdown components={mdComponents}>
+                {messageContent}
+              </ReactMarkdown>
+            )}
           </div>
           
           {/* Tool calls and results */}
@@ -309,8 +359,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onCancel,
   onReset,
   
-  // Activity tracking
-  liveActivityEvents = [],
+  // Activity tracking - removed for simplicity
   
   // Parallel functionality - unified in-place tabs only
   parallelTabsState,
@@ -383,20 +432,44 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const groups = groupMessages(messages);
     
     // Enhance supervisor announcement groups with sequences data
-    return groups.map(group => {
+    // Also convert the last AI message to supervisor announcement if we have sequences
+    return groups.map((group, index) => {
       if (group.type === 'supervisor_announcement' && parallelTabsState?.sequences) {
         return {
           ...group,
           sequences: parallelTabsState.sequences
         };
       }
+      
+      // If we have sequences but no supervisor announcement, convert the last AI message
+      if (group.type === 'ai_complete' && 
+          parallelTabsState?.hasAnnounced && 
+          parallelTabsState.sequences.length > 0 &&
+          index === groups.length - 1) {
+        return {
+          ...group,
+          type: 'supervisor_announcement' as const,
+          sequences: parallelTabsState.sequences
+        };
+      }
+      
       return group;
     });
-  }, [messages, parallelTabsState?.sequences]);
+  }, [messages, parallelTabsState?.sequences, parallelTabsState?.hasAnnounced]);
 
   // ============================================================================
   // UNIFIED RENDER - IN-PLACE TABS ONLY
   // ============================================================================
+  
+  // Debug logging
+  if (import.meta.env?.DEV && parallelTabsState?.sequences && (parallelTabsState.sequences?.length || 0) > 0) {
+    console.log('ChatInterface render - parallelTabsState:', {
+      isActive: parallelTabsState?.isActive,
+      sequencesLength: parallelTabsState?.sequences?.length,
+      hasAnnounced: parallelTabsState?.hasAnnounced,
+      messageGroupsWithSupervisor: messageGroups.filter(g => g.type === 'supervisor_announcement').length
+    });
+  }
   
   return (
     <div className={cn("flex flex-col h-full", className)}>
@@ -436,46 +509,92 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       )}
                     </div>
 
-                    {/* In-place parallel tabs - unified paradigm */}
-                    {group.type === 'supervisor_announcement' && 
-                     parallelTabsState?.isActive && 
-                     parallelTabsState.sequences.length > 0 && (
+                    {/* Side-by-side parallel research interface */}
+                    {(() => {
+                      const shouldShowInterface = group.type === 'supervisor_announcement' && 
+                        parallelTabsState?.sequences && 
+                        parallelTabsState.sequences.length > 0 && 
+                        parallelTabsState?.isActive;
+                      
+                      if (import.meta.env?.DEV && group.type === 'supervisor_announcement') {
+                        console.log('Checking if should show parallel interface:', {
+                          groupType: group.type,
+                          hasSequences: !!parallelTabsState?.sequences,
+                          sequencesLength: parallelTabsState?.sequences?.length || 0,
+                          isActive: parallelTabsState?.isActive,
+                          shouldShow: shouldShowInterface
+                        });
+                      }
+                      
+                      return shouldShowInterface;
+                    })() && (
                       <EnhancedErrorBoundary 
                         level="feature" 
-                        resetKeys={[parallelTabsState.sequences.length]}
+                        resetKeys={[parallelTabsState?.sequences?.length || 0]}
                       >
-                        <ParallelTabContainer
-                          sequences={parallelTabsState.sequences}
-                          parallelMessages={parallelMessages || {}}
-                          onTabChange={onParallelTabChange || (() => {})}
-                          activeTabId={parallelTabsState.activeTabId}
-                          isLoading={isLoading}
-                          className="mt-4"
-                        />
+                        <div className="mt-4 h-[600px] border border-neutral-700/50 rounded-lg overflow-hidden bg-neutral-900/50">
+                          <ParallelResearchInterface
+                            sequences={parallelTabsState?.sequences || []}
+                            parallelMessages={parallelMessages || {}}
+                            activeTabId={parallelTabsState?.activeTabId || ''}
+                            onTabChange={onParallelTabChange || (() => {})}
+                            isLoading={isLoading}
+                          />
+                        </div>
                       </EnhancedErrorBoundary>
                     )}
                   </div>
                 );
               })}
               
-              {/* Activity indicator for live research */}
-              {isLoading && liveActivityEvents.length > 0 && (
+              {/* Fallback parallel tabs - show if we have sequences but no supervisor announcement displayed yet */}
+              {parallelTabsState?.sequences && 
+               parallelTabsState.sequences.length > 0 && 
+               !messageGroups.some(group => group.type === 'supervisor_announcement') && (
+                <div className="space-y-3">
+                  <EnhancedErrorBoundary 
+                    level="feature" 
+                    resetKeys={[parallelTabsState.sequences.length]}
+                  >
+                    <SupervisorAnnouncementMessage
+                      sequences={parallelTabsState.sequences}
+                      onTabsInitialized={onTabsInitialized}
+                      isLoading={isLoading}
+                      researchQuery="Parallel research sequences generated"
+                      className="max-w-full"
+                    />
+                  </EnhancedErrorBoundary>
+                  
+                  {/* Show side-by-side interface immediately if sequences are active */}
+                  {parallelTabsState?.isActive && (
+                    <EnhancedErrorBoundary 
+                      level="feature" 
+                      resetKeys={[parallelTabsState?.sequences?.length || 0]}
+                    >
+                      <div className="mt-4 h-[600px] border border-neutral-700/50 rounded-lg overflow-hidden bg-neutral-900/50">
+                        <ParallelResearchInterface
+                          sequences={parallelTabsState?.sequences || []}
+                          parallelMessages={parallelMessages || {}}
+                          activeTabId={parallelTabsState?.activeTabId || ''}
+                          onTabChange={onParallelTabChange || (() => {})}
+                          isLoading={isLoading}
+                        />
+                      </div>
+                    </EnhancedErrorBoundary>
+                  )}
+                </div>
+              )}
+              
+              {/* Loading indicator */}
+              {isLoading && (
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-1">
                     <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="bg-neutral-800 rounded-2xl p-4 shadow-sm">
-                      <div className="space-y-2">
-                        {liveActivityEvents.slice(-3).map((event, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-                            <div className="text-sm text-neutral-300">
-                              <span className="font-medium">{event.title}</span>
-                              <span className="text-neutral-400 ml-2">{typeof event.data === 'string' ? event.data : JSON.stringify(event.data)}</span>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="text-sm text-neutral-300">
+                        <span className="font-medium">Processing...</span>
                       </div>
                     </div>
                   </div>

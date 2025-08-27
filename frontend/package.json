@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b tsconfig.build.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest --config vite.config.test.ts",
-    "test:ui": "vitest --ui --config vite.config.test.ts",
-    "test:coverage": "vitest run --coverage --config vite.config.test.ts"
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@langchain/core": "^0.3.55",

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TypedText, TypedParagraph, TypedCode, TypedList } from './typed-text';
+import { TypedText, TypedParagraph, TypedCode, TypedList } from '@/components/ui/typed-text';
 
 // Mock timers for predictable testing
 beforeEach(() => {

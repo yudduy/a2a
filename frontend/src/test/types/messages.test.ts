@@ -15,7 +15,7 @@ import {
   getPendingToolCalls,
   getFailedToolCalls,
   countToolCallsByStatus
-} from './messages';
+} from '@/types/messages';
 
 describe('MessageContentParser', () => {
   beforeEach(() => {

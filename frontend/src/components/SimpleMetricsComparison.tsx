@@ -61,10 +61,10 @@ const SimpleMetricsComparison: React.FC<SimpleMetricsComparisonProps> = ({
       const { metrics, start_time, end_time, errors } = sequence;
       
       // Productivity: Messages and insights generated
-      const productivity = Math.min(100, (metrics.total_messages * 2) + (metrics.insights_generated * 5));
+      const productivity = Math.min(100, (metrics.message_count * 2) + ((metrics.insights_generated || 0) * 5));
       
       // Efficiency: Speed and processing time (lower is better, so invert)
-      const processingTimeSeconds = metrics.processing_time / 1000;
+      const processingTimeSeconds = metrics.research_duration / 1000;
       const efficiency = Math.max(0, 100 - Math.min(100, processingTimeSeconds / 60 * 10)); // Penalty for >6 minutes
       
       // Reliability: Error rate and completion status
@@ -121,15 +121,15 @@ const SimpleMetricsComparison: React.FC<SimpleMetricsComparisonProps> = ({
       </div>
 
       {/* Winner Section */}
-      <Card className={cn("relative overflow-hidden", getStrategyConfig(winner.sequence.strategy).bgColor)}>
+      <Card className={cn("relative overflow-hidden", getStrategyConfig(winner.sequence.strategy || SequenceStrategy.THEORY_FIRST).bgColor)}>
         <CardHeader className="relative">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-yellow-500" />
                 <CardTitle className="text-lg">Winner</CardTitle>
-                <Badge className={getStrategyConfig(winner.sequence.strategy).color}>
-                  {getStrategyConfig(winner.sequence.strategy).name}
+                <Badge className={getStrategyConfig(winner.sequence.strategy || SequenceStrategy.THEORY_FIRST).color}>
+                  {getStrategyConfig(winner.sequence.strategy || SequenceStrategy.THEORY_FIRST).name}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -143,7 +143,7 @@ const SimpleMetricsComparison: React.FC<SimpleMetricsComparisonProps> = ({
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-blue-600" />
               <div className="text-sm">
-                <div className="font-medium">{winner.sequence.metrics.total_messages}</div>
+                <div className="font-medium">{winner.sequence.metrics.message_count}</div>
                 <div className="text-muted-foreground">Messages</div>
               </div>
             </div>
@@ -220,9 +220,9 @@ const SimpleMetricsComparison: React.FC<SimpleMetricsComparisonProps> = ({
                     <div className="flex items-center gap-2">
                       <Badge 
                         variant="outline" 
-                        className={getStrategyConfig(sequence.strategy).color}
+                        className={getStrategyConfig(sequence.strategy || SequenceStrategy.THEORY_FIRST).color}
                       >
-                        {getStrategyConfig(sequence.strategy).name}
+                        {getStrategyConfig(sequence.strategy || SequenceStrategy.THEORY_FIRST).name}
                       </Badge>
                       <span className="text-sm text-muted-foreground">
                         {score}% score
@@ -238,7 +238,7 @@ const SimpleMetricsComparison: React.FC<SimpleMetricsComparisonProps> = ({
                 <CardContent>
                   <div className="grid grid-cols-3 gap-3 text-sm">
                     <div className="text-center">
-                      <div className="font-medium">{sequence.metrics.total_messages}</div>
+                      <div className="font-medium">{sequence.metrics.message_count}</div>
                       <div className="text-muted-foreground">Messages</div>
                     </div>
                     <div className="text-center">
@@ -271,7 +271,7 @@ const SimpleMetricsComparison: React.FC<SimpleMetricsComparisonProps> = ({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div className="text-center">
               <div className="font-semibold text-lg">
-                {sequenceScores.reduce((sum, s) => sum + s.sequence.metrics.total_messages, 0)}
+                {sequenceScores.reduce((sum, s) => sum + s.sequence.metrics.message_count, 0)}
               </div>
               <div className="text-muted-foreground">Total Messages</div>
             </div>
@@ -283,7 +283,7 @@ const SimpleMetricsComparison: React.FC<SimpleMetricsComparisonProps> = ({
             </div>
             <div className="text-center">
               <div className="font-semibold text-lg">
-                {sequenceScores.reduce((sum, s) => sum + s.sequence.metrics.agent_calls, 0)}
+                {sequenceScores.reduce((sum, s) => sum + (s.sequence.metrics.agent_calls || 0), 0)}
               </div>
               <div className="text-muted-foreground">Tool Calls</div>
             </div>

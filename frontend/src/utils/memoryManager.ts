@@ -1,3 +1,5 @@
+import React from 'react';
+
 /**
  * Production Memory Management Utilities
  * 
@@ -42,7 +44,7 @@ class MemoryManager {
   private gcTimer: number | null = null;
   private cleanupTimer: number | null = null;
   private memoryObserver: PerformanceObserver | null = null;
-  private weakRefs = new Set<WeakRef<any>>();
+  private weakRefs = new Set<any>(); // WeakRef not available in all environments
 
   private constructor(config: Partial<MemoryConfig> = {}) {
     this.config = {
@@ -166,10 +168,14 @@ class MemoryManager {
   /**
    * Create a weak reference that's automatically tracked
    */
-  createWeakRef<T extends object>(target: T): WeakRef<T> {
-    const weakRef = new WeakRef(target);
-    this.weakRefs.add(weakRef);
-    return weakRef;
+  createWeakRef<T extends object>(target: T): any {
+    // WeakRef not available in all environments
+    if (typeof window !== 'undefined' && 'WeakRef' in window) {
+      const weakRef = new (window as any).WeakRef(target);
+      this.weakRefs.add(weakRef);
+      return weakRef;
+    }
+    return null;
   }
 
   /**
@@ -177,14 +183,14 @@ class MemoryManager {
    */
   optimizeComponent<T extends Record<string, any>>(component: T): T {
     // Add memory-aware cleanup methods
-    if (!component._memoryOptimized) {
-      const originalComponentWillUnmount = component.componentWillUnmount;
-      const originalCleanup = component.cleanup;
+    if (!(component as any)._memoryOptimized) {
+      const originalComponentWillUnmount = (component as any).componentWillUnmount;
+      const originalCleanup = (component as any).cleanup;
 
-      component.componentWillUnmount = function() {
+      (component as any).componentWillUnmount = function() {
         // Clean up tracked resources
-        if (this._resourceIds) {
-          this._resourceIds.forEach((id: string) => {
+        if ((this as any)._resourceIds) {
+          (this as any)._resourceIds.forEach((id: string) => {
             MemoryManager.getInstance().unregisterResource(id);
           });
         }
@@ -198,8 +204,8 @@ class MemoryManager {
         }
       };
 
-      component._memoryOptimized = true;
-      component._resourceIds = new Set<string>();
+      (component as any)._memoryOptimized = true;
+      (component as any)._resourceIds = new Set<string>();
     }
 
     return component;

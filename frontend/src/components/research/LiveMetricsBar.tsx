@@ -35,7 +35,8 @@ import {
 import { 
   ParallelSequencesState, 
   RealTimeMetrics, 
-  ConnectionState 
+  ConnectionState,
+  SequenceStrategy 
 } from '@/types/parallel';
 import { cn } from '@/lib/utils';
 
@@ -344,7 +345,7 @@ export function LiveMetricsBar({
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {progress.sequences.map((sequence) => {
-                  const strategyName = sequence.strategy.replace('_', ' ').split(' ')
+                  const strategyName = (sequence.strategy || SequenceStrategy.THEORY_FIRST).replace('_', ' ').split(' ')
                     .map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
                   
                   return (

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TypedMarkdown, TypedCodeMarkdown, TypedThinkingMarkdown } from './typed-markdown';
+import { TypedMarkdown, TypedCodeMarkdown, TypedThinkingMarkdown } from '@/components/ui/typed-markdown';
 
 // Mock react-markdown
 vi.mock('react-markdown', () => ({

@@ -240,7 +240,7 @@ export function ComparisonSummary({
   };
 
   const generateSummaryText = () => {
-    const winnerConfig = strategyConfig[winner.sequence.strategy];
+    const winnerConfig = strategyConfig[winner.sequence.strategy || SequenceStrategy.THEORY_FIRST];
     return `# Parallel Research Analysis Summary
 
 ## Query: ${progress.research_query}
@@ -255,7 +255,7 @@ ${winner.keyInsights.map(insight => `- ${insight}`).join('\n')}
 
 ### Performance Comparison:
 ${analysis.map(a => {
-  const config = strategyConfig[a.sequence.strategy];
+  const config = strategyConfig[a.sequence.strategy || SequenceStrategy.THEORY_FIRST];
   return `**${config.title}:** ${a.score.toFixed(1)}/100 (${a.completeness.toFixed(1)}% complete)`;
 }).join('\n')}
 
@@ -341,10 +341,10 @@ Generated at: ${new Date().toISOString()}`;
                 <Trophy className="h-8 w-8 text-yellow-400" />
                 <div>
                   <h3 className="text-xl font-bold text-yellow-100">
-                    {strategyConfig[winner.sequence.strategy].title} Strategy Wins!
+                    {strategyConfig[winner.sequence.strategy || SequenceStrategy.THEORY_FIRST].title} Strategy Wins!
                   </h3>
                   <p className="text-yellow-200/80">
-                    {strategyConfig[winner.sequence.strategy].description}
+                    {strategyConfig[winner.sequence.strategy || SequenceStrategy.THEORY_FIRST].description}
                   </p>
                 </div>
                 <div className="ml-auto text-right">
@@ -403,7 +403,7 @@ Generated at: ${new Date().toISOString()}`;
               </h4>
               <div className="space-y-3">
                 {analysis.map((a, index) => {
-                  const config = strategyConfig[a.sequence.strategy];
+                  const config = strategyConfig[a.sequence.strategy || SequenceStrategy.THEORY_FIRST];
                   
                   return (
                     <div key={a.sequence.sequence_id} className="bg-neutral-700/50 rounded-lg p-4">
@@ -462,7 +462,7 @@ Generated at: ${new Date().toISOString()}`;
           {/* Details Tab */}
           <TabsContent value="details" className="space-y-6">
             {analysis.map((a) => {
-              const config = strategyConfig[a.sequence.strategy];
+              const config = strategyConfig[a.sequence.strategy || SequenceStrategy.THEORY_FIRST];
               
               return (
                 <Card key={a.sequence.sequence_id} className="border-neutral-600 bg-neutral-700/50">
@@ -631,7 +631,7 @@ Generated at: ${new Date().toISOString()}`;
                 <div>
                   <span className="text-neutral-400">Winner:</span>
                   <div className="font-medium text-yellow-300">
-                    {strategyConfig[winner.sequence.strategy].title}
+                    {strategyConfig[winner.sequence.strategy || SequenceStrategy.THEORY_FIRST].title}
                   </div>
                 </div>
               </div>

@@ -5,11 +5,11 @@ import {
   CollapsibleThinking, 
   ThinkingSections, 
   ThinkingIndicator 
-} from './collapsible-thinking';
+} from '@/components/ui/collapsible-thinking';
 import { ThinkingSection } from '@/types/messages';
 
 // Mock the ui components
-vi.mock('./collapsible', () => ({
+vi.mock('@/components/ui/collapsible', () => ({
   Collapsible: ({ children, open, onOpenChange }: any) => (
     <div data-testid="collapsible" data-open={open} onClick={() => onOpenChange?.(!open)}>
       {children}

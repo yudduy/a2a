@@ -1,4 +1,15 @@
 import '@testing-library/jest-dom'
+import { vi, expect, test, describe, beforeEach, afterEach, beforeAll, afterAll } from 'vitest'
+
+// Make vitest globals available - cast to any to avoid TypeScript errors
+(global as any).vi = vi;
+(global as any).expect = expect;
+(global as any).test = test;
+(global as any).describe = describe;
+(global as any).beforeEach = beforeEach;
+(global as any).afterEach = afterEach;
+(global as any).beforeAll = beforeAll;
+(global as any).afterAll = afterAll;
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
@@ -35,7 +46,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock requestAnimationFrame
-global.requestAnimationFrame = (cb: any) => setTimeout(cb, 0);
+global.requestAnimationFrame = (cb: any) => setTimeout(cb, 0) as any;
 global.cancelAnimationFrame = (id: any) => clearTimeout(id);
 
 // Increase test timeout for typing animations

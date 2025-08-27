@@ -100,10 +100,10 @@ export function usePerformanceMonitor(
   const renderTimes = useRef<number[]>([]);
   const interactionTimes = useRef<number[]>([]);
   const customMarks = useRef<Map<string, number>>(new Map());
-  const reportingTimer = useRef<NodeJS.Timeout>();
+  const reportingTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Performance observer for Web Vitals
-  const webVitalsObserver = useRef<PerformanceObserver>();
+  const webVitalsObserver = useRef<PerformanceObserver | null>(null);
 
   // Track render start
   const markRenderStart = useCallback(() => {
