@@ -30,6 +30,7 @@ from open_deep_research.core.sequence_generator import (
     SequenceGenerationInput, 
     AgentSequence
 )
+from open_deep_research.supervisor.sequence_models import AgentCapability
 from open_deep_research.supervisor.agent_capability_mapper import AgentCapabilityMapper
 from open_deep_research.sequencing.parallel_executor import ParallelSequenceExecutor
 from open_deep_research.prompts import (
@@ -1336,10 +1337,60 @@ async def generate_strategic_sequences(
             logger.warning("No agent capabilities found for sequence generation, using fallback")
             return await create_fallback_strategic_sequences([], research_topic)
         
+        # Validate all agent capabilities to ensure they're properly formed
+        validated_capabilities = []
+        for i, cap in enumerate(agent_capabilities):
+            try:
+                # Check if it's already a proper AgentCapability object
+                from open_deep_research.supervisor.sequence_models import AgentCapability
+                
+                if isinstance(cap, AgentCapability):
+                    # Validate by ensuring all required fields are present
+                    if cap.name and cap.expertise_areas and cap.description:
+                        validated_capabilities.append(cap)
+                    else:
+                        logger.warning(f"AgentCapability {i} missing required fields: name={cap.name}, expertise_areas={cap.expertise_areas}, description={cap.description}")
+                elif isinstance(cap, dict):
+                    # Try to construct AgentCapability from dict
+                    try:
+                        agent_cap = AgentCapability(**cap)
+                        validated_capabilities.append(agent_cap)
+                        logger.debug(f"Successfully converted dict to AgentCapability for agent {agent_cap.name}")
+                    except Exception as dict_error:
+                        logger.warning(f"Failed to convert dict to AgentCapability: {dict_error}")
+                        logger.debug(f"Problematic dict: {cap}")
+                else:
+                    # Try to convert other types
+                    if hasattr(cap, 'name') and hasattr(cap, 'expertise_areas') and hasattr(cap, 'description'):
+                        # Convert to dict first, then to AgentCapability
+                        cap_dict = {
+                            'name': cap.name,
+                            'expertise_areas': cap.expertise_areas or [],
+                            'description': cap.description or '',
+                            'typical_use_cases': getattr(cap, 'typical_use_cases', []),
+                            'strength_summary': getattr(cap, 'strength_summary', ''),
+                            'core_responsibilities': getattr(cap, 'core_responsibilities', []),
+                            'completion_indicators': getattr(cap, 'completion_indicators', [])
+                        }
+                        agent_cap = AgentCapability(**cap_dict)
+                        validated_capabilities.append(agent_cap)
+                        logger.debug(f"Successfully converted object to AgentCapability for agent {agent_cap.name}")
+                    else:
+                        logger.warning(f"Invalid capability object found, skipping: {type(cap)} - {cap}")
+            except Exception as e:
+                logger.warning(f"Failed to validate agent capability {i}: {e}")
+                logger.debug(f"Capability data: {cap}")
+        
+        if not validated_capabilities:
+            logger.warning("No valid agent capabilities found for sequence generation, using fallback")
+            return await create_fallback_strategic_sequences([], research_topic)
+        
         # Limit to first 10 agents for performance and LLM context window
-        if len(agent_capabilities) > 10:
-            agent_capabilities = agent_capabilities[:10]
+        if len(validated_capabilities) > 10:
+            validated_capabilities = validated_capabilities[:10]
             logger.info(f"Limited agent capabilities to first 10 agents for LLM processing")
+        
+        agent_capabilities = validated_capabilities
         
         # Initialize LLM sequence generator with configuration
         configurable = Configuration.from_runnable_config(config)
@@ -1364,28 +1415,37 @@ async def generate_strategic_sequences(
         )
         
         logger.info(f"Generating strategic sequences for research topic: {research_topic}")
+        logger.debug(f"Using {len(agent_capabilities)} validated agent capabilities for LLM generation")
         
         # Generate sequences asynchronously
-        result = await generator.generate_sequences(generation_input)
+        try:
+            result = await generator.generate_sequences(generation_input)
+            
+            if result.success and result.output.sequences:
+                logger.info(f"Successfully generated {len(result.output.sequences)} strategic sequences")
+                # Log details about each sequence
+                for i, seq in enumerate(result.output.sequences):
+                    logger.info(f"Sequence {i+1}: {seq.sequence_name} - {seq.research_focus} (confidence: {seq.confidence_score:.2f})")
+                
+                # Identify recommended sequence
+                recommended_idx = getattr(result.output, 'recommended_sequence', 0)
+                if 0 <= recommended_idx < len(result.output.sequences):
+                    logger.info(f"LLM recommends sequence {recommended_idx + 1}: {result.output.sequences[recommended_idx].sequence_name}")
+                
+                return result.output.sequences
+            else:
+                error_details = "Unknown error"
+                if hasattr(result, 'metadata') and hasattr(result.metadata, 'error_details'):
+                    error_details = result.metadata.error_details
+                elif hasattr(result, 'metadata') and hasattr(result.metadata, 'fallback_used') and result.metadata.fallback_used:
+                    error_details = "LLM generation used fallback mode"
+                logger.warning(f"LLM sequence generation failed: {error_details}")
+                logger.info("Creating fallback sequences using agent capabilities")
+                return await create_fallback_strategic_sequences(agent_capabilities, research_topic)
         
-        if result.success and result.output.sequences:
-            logger.info(f"Successfully generated {len(result.output.sequences)} strategic sequences")
-            # Log details about each sequence
-            for i, seq in enumerate(result.output.sequences):
-                logger.info(f"Sequence {i+1}: {seq.sequence_name} - {seq.research_focus} (confidence: {seq.confidence_score:.2f})")
-            
-            # Identify recommended sequence
-            recommended_idx = getattr(result.output, 'recommended_sequence', 0)
-            if 0 <= recommended_idx < len(result.output.sequences):
-                logger.info(f"LLM recommends sequence {recommended_idx + 1}: {result.output.sequences[recommended_idx].sequence_name}")
-            
-            return result.output.sequences
-        else:
-            error_details = "Unknown error"
-            if hasattr(result, 'metadata') and hasattr(result.metadata, 'error_details'):
-                error_details = result.metadata.error_details
-            logger.warning(f"LLM sequence generation failed: {error_details}")
-            logger.info("Creating fallback sequences using agent capabilities")
+        except Exception as generation_error:
+            logger.error(f"Exception during LLM sequence generation: {generation_error}")
+            logger.info("Creating fallback sequences due to generation exception")
             return await create_fallback_strategic_sequences(agent_capabilities, research_topic)
             
     except Exception as e:
@@ -1431,44 +1491,44 @@ async def create_fallback_strategic_sequences(
     
     sequences = []
     
-    # Sequence 1: Linear approach with available agents
+    # Sequence 1: Foundational Academic Research - designed to trigger 'foundational' theme
     if agent_names:
         seq1_agents = agent_names[:min(3, len(agent_names))]
         sequences.append(AgentSequence(
-            sequence_name="Comprehensive Research Sequence",
+            sequence_name="Foundational Academic Research",
             agent_names=seq1_agents,
-            rationale="Sequential comprehensive research using available specialized agents to provide thorough coverage of the research topic",
-            approach_description="Linear progression through specialized research agents for complete topic coverage",
+            rationale="Systematic academic research approach building comprehensive theoretical foundations through scholarly analysis and evidence-based methodology",
+            approach_description="Academic rigor with systematic literature review and theoretical framework development for comprehensive foundational understanding",
             expected_outcomes=[
-                "Foundational research understanding",
-                "Specialized domain insights", 
-                "Comprehensive analysis and conclusions"
+                "Theoretical framework establishment",
+                "Academic literature synthesis", 
+                "Evidence-based foundational insights"
             ],
             confidence_score=0.8,
-            research_focus="Comprehensive research coverage"
+            research_focus="Academic foundation and theoretical understanding"
         ))
     
-    # Sequence 2: Alternative perspective with different agent order
+    # Sequence 2: Technical Implementation Analysis - designed to trigger 'technical' theme  
     if len(agent_names) >= 2:
         seq2_agents = agent_names[1:min(4, len(agent_names))]
         if len(seq2_agents) == 0 and agent_names:
             seq2_agents = [agent_names[0]]
         
         sequences.append(AgentSequence(
-            sequence_name="Alternative Analysis Sequence", 
+            sequence_name="Technical Implementation Deep-Dive", 
             agent_names=seq2_agents,
-            rationale="Alternative research approach using different agent perspectives to uncover varied insights and validate findings through diverse analytical lenses",
-            approach_description="Multi-perspective analysis with specialized agents for comprehensive viewpoint coverage",
+            rationale="Engineering-focused technical analysis examining system architecture, implementation feasibility, and performance optimization through specialized technical expertise",
+            approach_description="Technical architecture analysis with engineering feasibility assessment and system design optimization",
             expected_outcomes=[
-                "Alternative research perspectives",
-                "Cross-validation of findings",
-                "Diverse analytical insights"
+                "Technical architecture insights",
+                "Implementation feasibility analysis",
+                "Performance optimization recommendations"
             ],
             confidence_score=0.7,
-            research_focus="Multi-perspective analysis"
+            research_focus="Technical implementation and system architecture"
         ))
     
-    # Sequence 3: Focused deep-dive approach
+    # Sequence 3: Market Intelligence Analysis - designed to trigger 'market' theme
     if agent_names:
         # Use first and last agents if available, or just first
         seq3_agents = []
@@ -1478,30 +1538,57 @@ async def create_fallback_strategic_sequences(
             seq3_agents.append(agent_names[-1])
         
         sequences.append(AgentSequence(
-            sequence_name="Focused Strategic Sequence",
+            sequence_name="Market Intelligence Analysis",
             agent_names=seq3_agents or [agent_names[0]] if agent_names else [],
-            rationale="Targeted research approach focusing on key specialized agents for deep domain expertise and strategic insights into the most critical aspects",
-            approach_description="Strategic focus on key research agents for maximum impact and targeted analysis",
+            rationale="Business-oriented market research focusing on commercial viability, competitive landscape, and industry trends to inform strategic business decisions",
+            approach_description="Market dynamics analysis with competitive intelligence and commercial opportunity assessment",
             expected_outcomes=[
-                "Deep domain expertise",
-                "Strategic research insights",
-                "High-impact findings"
+                "Market opportunity identification",
+                "Competitive landscape mapping",
+                "Commercial viability assessment"
             ],
             confidence_score=0.6,
-            research_focus="Strategic focused research"
+            research_focus="Market trends and commercial intelligence"
         ))
     
     # Ensure we have exactly 3 sequences - critical for supervisor functionality
+    fallback_themes = [
+        {
+            "name": "Investigative Research Analysis", 
+            "rationale": "Comprehensive investigative research approach examining deep patterns and uncovering detailed insights through thorough investigation",
+            "approach": "Investigative analysis with comprehensive examination and detailed exploration",
+            "focus": "Investigation and comprehensive analysis",
+            "outcomes": ["Deep investigative findings", "Comprehensive examination", "Detailed insights"]
+        },
+        {
+            "name": "Experimental Innovation Research",
+            "rationale": "Innovative experimental research exploring cutting-edge developments and future trends through experimental methodology", 
+            "approach": "Experimental innovation analysis with emerging technology exploration",
+            "focus": "Innovation and experimental research",
+            "outcomes": ["Innovation insights", "Experimental findings", "Future trends"]
+        },
+        {
+            "name": "Rapid Assessment Research",
+            "rationale": "Quick rapid research approach optimized for immediate insights and actionable findings through efficient analysis",
+            "approach": "Rapid assessment with quick analysis and immediate decision support", 
+            "focus": "Rapid analysis and quick insights",
+            "outcomes": ["Immediate insights", "Quick assessment", "Actionable findings"]
+        }
+    ]
+    
     while len(sequences) < 3:
-        fallback_agents = agent_names[:1] if agent_names else ["general_researcher", "academic_analyst", "industry_expert"]
+        theme_idx = len(sequences) - 1 if len(sequences) > 0 else 0
+        theme = fallback_themes[theme_idx % len(fallback_themes)]
+        fallback_agents = agent_names[:1] if agent_names else ["general_researcher"]
+        
         sequences.append(AgentSequence(
-            sequence_name=f"Fallback Research Sequence {len(sequences) + 1}",
-            agent_names=fallback_agents if agent_names else [f"fallback_agent_{len(sequences) + 1}"],
-            rationale="Fallback research approach ensuring the supervisor always has sequences available for execution",
-            approach_description="Guaranteed research execution sequence with available or synthetic agents",
-            expected_outcomes=["Research execution", "Basic findings", "Supervisor functionality maintained"],
+            sequence_name=theme["name"],
+            agent_names=fallback_agents,
+            rationale=theme["rationale"],
+            approach_description=theme["approach"],
+            expected_outcomes=theme["outcomes"],
             confidence_score=0.3,
-            research_focus="Fallback research execution"
+            research_focus=theme["focus"]
         ))
     
     # Guarantee we never return empty sequences

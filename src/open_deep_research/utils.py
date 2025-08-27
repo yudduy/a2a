@@ -301,30 +301,59 @@ def clean_reasoning_model_output(content: str) -> str:
     """
     import re
     
-    # For UI display, we want to preserve thinking tags in a special format
-    # Check if this content should preserve thinking for frontend
-    if '<thinking>' in content or '<think>' in content:
-        # Return content with preserved thinking tags for frontend parsing
-        return content
+    # ALWAYS clean thinking tags for structured output parsing
+    # The parse_reasoning_model_output() function handles UI display preservation separately
     
-    # Remove thinking tags and their content from the beginning
-    # Pattern matches: <think>...</think> or <think>...{content}
-    think_pattern = r'<think>.*?</think>\s*'
-    cleaned = re.sub(think_pattern, '', content, flags=re.DOTALL)
+    # Remove all thinking tags and their content
+    # Support multiple thinking tag formats: <thinking>, <think>, etc.
+    thinking_patterns = [
+        r'<thinking>.*?</thinking>\s*',  # Standard thinking tags
+        r'<think>.*?</think>\s*',        # Alternative thinking tags
+        r'<reflection>.*?</reflection>\s*', # Reflection tags
+        r'<analysis>.*?</analysis>\s*',  # Analysis tags
+        r'<reasoning>.*?</reasoning>\s*' # Reasoning tags
+    ]
     
-    # Handle unclosed thinking tags (remove everything from <think> to first {)
-    unclosed_think_pattern = r'<think>.*?(?=\{)'
-    cleaned = re.sub(unclosed_think_pattern, '', cleaned, flags=re.DOTALL)
+    cleaned = content
+    for pattern in thinking_patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL)
     
-    # Remove any remaining <think> or </think> tags
-    cleaned = re.sub(r'</?think>', '', cleaned)
+    # Handle unclosed thinking tags (remove everything from opening tag to first JSON)
+    unclosed_patterns = [
+        r'<thinking>.*?(?=\{)',
+        r'<think>.*?(?=\{)',
+        r'<reflection>.*?(?=\{)',
+        r'<analysis>.*?(?=\{)',
+        r'<reasoning>.*?(?=\{)'
+    ]
+    
+    for pattern in unclosed_patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL)
+    
+    # Remove any remaining orphaned opening/closing tags
+    orphan_tags = [
+        r'</?thinking>',
+        r'</?think>',
+        r'</?reflection>',
+        r'</?analysis>',
+        r'</?reasoning>'
+    ]
+    
+    for pattern in orphan_tags:
+        cleaned = re.sub(pattern, '', cleaned)
     
     # Extract JSON content if present (find content between first { and last })
+    # Use more robust JSON detection
     json_match = re.search(r'\{.*\}', cleaned, flags=re.DOTALL)
     if json_match:
-        return json_match.group(0)
+        json_content = json_match.group(0)
+        
+        # Validate that this looks like actual JSON by checking for basic structure
+        if '"' in json_content and (':' in json_content or ',' in json_content):
+            return json_content
     
-    # If no JSON found, return the cleaned content stripped of whitespace
+    # If no JSON found, clean up whitespace and return
+    cleaned = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned)
     return cleaned.strip()
 
 def parse_reasoning_model_output(content: str) -> dict:

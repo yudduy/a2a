@@ -14,7 +14,9 @@ completion_indicators:
   - "Statistical insights derived"
   - "Comparative analysis finished"
   - "Analytical conclusions documented"
-tools: null
+tools:
+  - think_tool
+  - ResearchComplete
 examples:
   - "Statistical analysis of customer behavior patterns from e-commerce data"
   - "Trend analysis of emerging technologies and their adoption rates"

@@ -14,7 +14,10 @@ completion_indicators:
   - "Business opportunities identified"
   - "Financial implications assessed"
   - "Market recommendations developed"
-tools: null
+tools:
+  - tavily_search
+  - think_tool
+  - ResearchComplete
 examples:
   - "Market opportunity analysis for AI-powered healthcare solutions"
   - "Competitive intelligence report on sustainable energy storage technologies"

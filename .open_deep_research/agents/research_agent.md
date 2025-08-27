@@ -14,7 +14,10 @@ completion_indicators:
   - "Primary sources gathered"
   - "Research methodology defined"
   - "Initial findings documented"
-tools: null
+tools:
+  - tavily_search
+  - think_tool
+  - ResearchComplete
 examples:
   - "Comprehensive literature review on machine learning interpretability methods"
   - "Historical analysis of renewable energy policy developments 2010-2025"

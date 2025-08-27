@@ -6,6 +6,18 @@ including agent capability descriptions, sequence reasoning, and metadata.
 
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
+from enum import Enum
+
+
+class SequenceStrategy(Enum):
+    """Sequence generation strategies."""
+    THEORY_FIRST = "theory_first"
+    MARKET_FIRST = "market_first"  
+    TECHNICAL_FIRST = "technical_first"
+    ANALYSIS_FIRST = "analysis_first"
+    BALANCED = "balanced"
+    CUSTOM = "custom"
+    LLM_GENERATED = "llm_generated"
 
 
 class AgentCapability(BaseModel):
@@ -45,13 +57,19 @@ class SequenceGenerationInput(BaseModel):
     """Input data for LLM sequence generation."""
     
     research_topic: str = Field(description="The research topic/question to address")
-    research_brief: Optional[str] = Field(description="Additional research context or brief")
+    research_brief: Optional[str] = Field(default=None, description="Additional research context or brief")
     available_agents: List[AgentCapability] = Field(description="Available agents with capabilities")
-    research_type: Optional[str] = Field(description="Type of research (academic, technical, market, etc.)")
+    research_type: Optional[str] = Field(default=None, description="Type of research (academic, technical, market, etc.)")
     constraints: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
         description="Any constraints on sequence generation"
     )
+    generation_mode: str = Field(
+        default="hybrid",
+        description="Generation mode: 'rule_based', 'llm_based', or 'hybrid'"
+    )
+    num_sequences: int = Field(default=3, ge=1, le=5, description="Number of sequences to generate")
+    strategies: Optional[List[SequenceStrategy]] = Field(default=None, description="Specific strategies to use")
 
 
 class SequenceGenerationOutput(BaseModel):
@@ -59,29 +77,32 @@ class SequenceGenerationOutput(BaseModel):
     
     research_analysis: str = Field(description="Analysis of the research requirements")
     sequences: List[AgentSequence] = Field(
-        min_items=3, max_items=3,
-        description="Exactly 3 strategic agent sequences"
+        min_items=1, max_items=5,
+        description="Generated strategic agent sequences"
     )
     reasoning_summary: str = Field(description="Summary of overall reasoning approach")
     recommended_sequence: int = Field(
-        ge=0, le=2,
-        description="Index of recommended sequence (0-2)"
+        ge=0,
+        description="Index of recommended sequence"
     )
     alternative_considerations: List[str] = Field(
         description="Alternative approaches or considerations"
     )
+    generation_mode: str = Field(description="Mode used for generation")
+    topic_analysis: Optional[Dict[str, Any]] = Field(default=None, description="Topic analysis results")
 
 
 class SequenceGenerationMetadata(BaseModel):
     """Metadata about the sequence generation process."""
     
     generation_timestamp: str = Field(description="When sequences were generated")
-    model_used: str = Field(description="LLM model used for generation")
+    model_used: str = Field(description="Method/model used for generation")
     input_token_count: Optional[int] = Field(description="Tokens in input")
     output_token_count: Optional[int] = Field(description="Tokens in output")
     generation_time_seconds: Optional[float] = Field(description="Time taken for generation")
     fallback_used: bool = Field(default=False, description="Whether fallback logic was used")
     error_details: Optional[str] = Field(default=None, description="Any error details if fallback used")
+    generation_mode: str = Field(description="Mode used for generation")
 
 
 class SequenceGenerationResult(BaseModel):

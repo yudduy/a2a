@@ -181,7 +181,7 @@ class SimpleSequentialExecutor:
         agent_config: Dict[str, Any],
         research_context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute a single agent with the given context.
+        """Execute a single agent with the given context using the researcher subgraph.
         
         Args:
             agent_name: Name of the agent to execute
@@ -191,70 +191,129 @@ class SimpleSequentialExecutor:
         Returns:
             Dictionary with agent execution results
         """
-        from open_deep_research.sequencing.specialized_agents.base_agent import ResearchContext
-        from open_deep_research.sequencing.models import AgentType
+        from open_deep_research.state import ResearcherState
+        from langchain_core.messages import HumanMessage, SystemMessage
+        from open_deep_research.deep_researcher import researcher_subgraph
         
-        # Map agent name to appropriate AgentType (simplified approach)
-        agent_type_mapping = {
-            "research_agent": AgentType.ACADEMIC,
-            "technical_agent": AgentType.TECHNICAL_TRENDS,
-            "market_agent": AgentType.INDUSTRY,
-            "analysis_agent": AgentType.ACADEMIC,
-            "synthesis_agent": AgentType.ACADEMIC
-        }
-        
-        # Get agent type or default to ACADEMIC
-        agent_type = agent_type_mapping.get(agent_name, AgentType.ACADEMIC)
-        
-        # Create research context for the agent
-        context = ResearchContext(
-            research_topic=research_context["research_topic"],
-            questions=research_context.get("questions", [research_context["research_topic"]]),
-            previous_insights=research_context.get("previous_insights", []),
-            sequence_position=research_context.get("sequence_position", 0),
-            agent_type=agent_type
-        )
-        
-        # For simplicity, we'll simulate agent execution with the agent configuration
-        # In a full implementation, this would instantiate and execute the actual agent
         start_time = time.time()
         
         try:
-            # Simulate agent execution by extracting key information from agent config
-            agent_description = agent_config.get("description", "")
+            # Create agent-specific research prompt based on configuration and context
+            agent_description = agent_config.get("description", f"Research agent: {agent_name}")
             agent_expertise = agent_config.get("expertise_areas", [])
+            system_prompt = agent_config.get("system_prompt", "You are a specialized research agent.")
             
-            # Generate some basic insights based on the agent configuration and context
-            key_insights = [
-                f"Agent {agent_name} analysis: {agent_description[:100]}...",
-                f"Research focus on {research_context['research_topic']} from {', '.join(agent_expertise[:2])} perspective"
-            ]
-            
-            # If we have previous insights, build on them
+            # Build research context for this agent
+            previous_insights_text = ""
             if research_context.get("previous_insights"):
-                key_insights.append(f"Building on previous findings: {len(research_context['previous_insights'])} prior insights considered")
+                previous_insights_text = f"\n\nPrevious Research Insights:\n" + "\n".join([
+                    f"- {insight}" for insight in research_context["previous_insights"][-5:]  # Last 5 insights
+                ])
+            
+            accumulated_findings_text = ""
+            if research_context.get("accumulated_findings"):
+                accumulated_findings_text = f"\n\nAccumulated Findings:\n" + "\n".join([
+                    f"- {finding[:200]}..." if len(finding) > 200 else f"- {finding}"
+                    for finding in research_context["accumulated_findings"][-3:]  # Last 3 findings
+                ])
+            
+            # Create focused research prompt for this agent
+            research_prompt = f"""Please conduct specialized research on: {research_context['research_topic']}
+
+Agent Role: {agent_description}
+Areas of Expertise: {', '.join(agent_expertise) if agent_expertise else 'General research'}
+Position in Sequence: {research_context.get('sequence_position', 0) + 1}
+
+{previous_insights_text}
+{accumulated_findings_text}
+
+Based on your expertise in {', '.join(agent_expertise[:2]) if agent_expertise else 'research'}, please:
+1. Conduct thorough research on this topic
+2. Provide specific insights from your domain perspective
+3. Use available tools to gather comprehensive information
+4. Build upon previous findings while adding your specialized knowledge
+
+Focus on delivering insights that complement the previous research and provide unique value from your specialized perspective."""
+            
+            # Prepare researcher state for execution
+            researcher_state = ResearcherState(
+                researcher_messages=[
+                    HumanMessage(content=research_prompt)
+                ],
+                tool_call_iterations=0
+            )
+            
+            # Execute the researcher subgraph
+            logger.debug(f"Executing researcher subgraph for agent {agent_name}")
+            result = await researcher_subgraph.ainvoke(
+                researcher_state,
+                config=self.config
+            )
+            
+            # Extract results from the researcher execution
+            compressed_research = result.get("compressed_research", "")
+            raw_notes = result.get("raw_notes", [])
+            
+            # Parse insights from the compressed research
+            key_insights = []
+            if compressed_research:
+                # Extract key findings from compressed research
+                lines = compressed_research.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    # Look for key insights, findings, or conclusions
+                    if any(keyword in line.lower() for keyword in ['insight:', 'finding:', 'conclusion:', 'key point:', '•', '-']):
+                        clean_line = line.replace('•', '').replace('-', '').strip()
+                        if len(clean_line) > 10:  # Meaningful content
+                            key_insights.append(clean_line)
+                
+                # If no structured insights found, extract meaningful sentences
+                if not key_insights:
+                    sentences = compressed_research.split('. ')
+                    for sentence in sentences[:5]:  # Take up to 5 sentences
+                        if len(sentence.strip()) > 20:
+                            key_insights.append(sentence.strip())
+            
+            # Ensure we have at least some insights
+            if not key_insights and agent_expertise:
+                key_insights = [
+                    f"Conducted {', '.join(agent_expertise[:2])} research on {research_context['research_topic']}",
+                    f"Applied {agent_name} specialized knowledge to the research topic"
+                ]
             
             execution_time = time.time() - start_time
+            
+            # Count tool calls from raw notes
+            tool_calls_count = 0
+            search_queries_count = 0
+            if raw_notes:
+                raw_content = ' '.join(raw_notes)
+                # Rough heuristic for tool usage
+                tool_calls_count = raw_content.lower().count('tool') + raw_content.lower().count('search')
+                search_queries_count = raw_content.lower().count('search') + raw_content.lower().count('query')
             
             return {
                 "agent_type": agent_name,
                 "agent_name": agent_name,
-                "key_insights": key_insights,
-                "research_findings": f"Research conducted by {agent_name} focusing on {research_context['research_topic']}",
+                "key_insights": key_insights[:10],  # Limit to top 10
+                "research_findings": compressed_research or f"Research conducted by {agent_name} on {research_context['research_topic']}",
                 "execution_duration": execution_time,
-                "tool_calls_made": 2,  # Simulated
-                "search_queries_executed": 1,  # Simulated
-                "success": True
+                "tool_calls_made": max(tool_calls_count, 1),  # At least 1
+                "search_queries_executed": max(search_queries_count, 1),  # At least 1
+                "success": True,
+                "raw_research_content": compressed_research,
+                "raw_notes": raw_notes
             }
             
         except Exception as e:
             logger.error(f"Failed to execute agent {agent_name}: {e}")
+            execution_time = time.time() - start_time
             return {
                 "agent_type": agent_name,
                 "agent_name": agent_name,
-                "key_insights": [],
+                "key_insights": [f"Agent {agent_name} encountered an error during research execution"],
                 "research_findings": f"Agent execution failed: {str(e)}",
-                "execution_duration": time.time() - start_time,
+                "execution_duration": execution_time,
                 "tool_calls_made": 0,
                 "search_queries_executed": 0,
                 "success": False,

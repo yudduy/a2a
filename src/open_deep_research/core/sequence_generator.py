@@ -20,6 +20,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field, ValidationError
 
 from open_deep_research.agents.registry import AgentRegistry
+from open_deep_research.supervisor.sequence_models import AgentCapability
 
 logger = logging.getLogger(__name__)
 
@@ -88,23 +89,6 @@ class GeneratedSequence:
     expertise_match_score: float = 0.0
 
 
-class AgentCapability(BaseModel):
-    """Represents an agent's capabilities for LLM reasoning."""
-    
-    name: str = Field(description="Agent name/identifier")
-    expertise_areas: List[str] = Field(description="Areas of expertise/specialization")
-    description: str = Field(description="Brief description of agent capabilities")
-    typical_use_cases: List[str] = Field(description="Common scenarios where this agent is useful")
-    strength_summary: str = Field(description="One-line summary of agent's main strength")
-    core_responsibilities: List[str] = Field(
-        default_factory=list,
-        description="Core responsibilities extracted from agent system prompt"
-    )
-    completion_indicators: List[str] = Field(
-        default_factory=list,
-        description="Indicators that signal when the agent has completed its work"
-    )
-
 
 class AgentSequence(BaseModel):
     """Represents a single strategic sequence of agents."""
@@ -125,9 +109,9 @@ class SequenceGenerationInput(BaseModel):
     """Input data for unified sequence generation."""
     
     research_topic: str = Field(description="The research topic/question to address")
-    research_brief: Optional[str] = Field(description="Additional research context or brief")
+    research_brief: Optional[str] = Field(default=None, description="Additional research context or brief")
     available_agents: List[AgentCapability] = Field(description="Available agents with capabilities")
-    research_type: Optional[str] = Field(description="Type of research (academic, technical, market, etc.)")
+    research_type: Optional[str] = Field(default=None, description="Type of research (academic, technical, market, etc.)")
     constraints: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
         description="Any constraints on sequence generation"
@@ -460,57 +444,8 @@ class UnifiedSequenceGenerator:
         start_time: float,
         generation_timestamp: str
     ) -> SequenceGenerationResult:
-        """Generate sequences using LLM-based approach."""
-        
-        try:
-            # Prepare messages
-            system_message = SystemMessage(content=self._llm_system_prompt)
-            user_message = HumanMessage(content=self._create_llm_user_prompt(input_data))
-            
-            messages = [system_message, user_message]
-            
-            # Calculate input tokens (approximate)
-            input_text = self._llm_system_prompt + self._create_llm_user_prompt(input_data)
-            input_token_count = len(input_text.split()) * 1.3  # Rough approximation
-            
-            # Generate response using configurable model
-            model = configurable_model.with_config(self.model_config)
-            
-            logger.info(f"Generating sequences for research topic: {input_data.research_topic}")
-            raw_response = await model.ainvoke(messages)
-            
-            # Extract and parse JSON response
-            response = self._parse_llm_response(raw_response.content)
-            
-            generation_time = time.time() - start_time
-            
-            # Calculate output tokens (approximate)
-            output_text = json.dumps(response.dict() if hasattr(response, 'dict') else str(response))
-            output_token_count = len(output_text.split()) * 1.3
-            
-            # Create metadata
-            metadata = SequenceGenerationMetadata(
-                generation_timestamp=generation_timestamp,
-                model_used=str(model),
-                input_token_count=int(input_token_count),
-                output_token_count=int(output_token_count),
-                generation_time_seconds=generation_time,
-                fallback_used=False,
-                generation_mode="llm_based"
-            )
-            
-            logger.info(f"Successfully generated {len(response.sequences)} sequences in {generation_time:.2f}s")
-            
-            return SequenceGenerationResult(
-                output=response,
-                metadata=metadata,
-                success=True
-            )
-            
-        except Exception as e:
-            logger.error(f"LLM sequence generation failed: {e}")
-            # Use fallback generation
-            return await self._generate_fallback(input_data, start_time, generation_timestamp, str(e))
+        """Generate sequences using LLM-based approach with retry mechanism."""
+        return await self._generate_llm_with_retry(input_data, start_time, generation_timestamp, is_sync=False)
     
     def _generate_llm_based_sync(
         self,
@@ -518,57 +453,10 @@ class UnifiedSequenceGenerator:
         start_time: float,
         generation_timestamp: str
     ) -> SequenceGenerationResult:
-        """Generate sequences using LLM-based approach (synchronous)."""
-        
-        try:
-            # Prepare messages
-            system_message = SystemMessage(content=self._llm_system_prompt)
-            user_message = HumanMessage(content=self._create_llm_user_prompt(input_data))
-            
-            messages = [system_message, user_message]
-            
-            # Calculate input tokens (approximate)
-            input_text = self._llm_system_prompt + self._create_llm_user_prompt(input_data)
-            input_token_count = len(input_text.split()) * 1.3  # Rough approximation
-            
-            # Generate response using configurable model
-            model = configurable_model.with_config(self.model_config)
-            
-            logger.info(f"Generating sequences for research topic: {input_data.research_topic}")
-            raw_response = model.invoke(messages)
-            
-            # Extract and parse JSON response
-            response = self._parse_llm_response(raw_response.content)
-            
-            generation_time = time.time() - start_time
-            
-            # Calculate output tokens (approximate)
-            output_text = json.dumps(response.dict() if hasattr(response, 'dict') else str(response))
-            output_token_count = len(output_text.split()) * 1.3
-            
-            # Create metadata
-            metadata = SequenceGenerationMetadata(
-                generation_timestamp=generation_timestamp,
-                model_used=str(model),
-                input_token_count=int(input_token_count),
-                output_token_count=int(output_token_count),
-                generation_time_seconds=generation_time,
-                fallback_used=False,
-                generation_mode="llm_based"
-            )
-            
-            logger.info(f"Successfully generated {len(response.sequences)} sequences in {generation_time:.2f}s")
-            
-            return SequenceGenerationResult(
-                output=response,
-                metadata=metadata,
-                success=True
-            )
-            
-        except Exception as e:
-            logger.error(f"LLM sequence generation failed: {e}")
-            # Use fallback generation
-            return self._generate_fallback_sync(input_data, start_time, generation_timestamp, str(e))
+        """Generate sequences using LLM-based approach (synchronous) with retry mechanism."""
+        import asyncio
+        # Use the async retry method but run it synchronously
+        return asyncio.run(self._generate_llm_with_retry(input_data, start_time, generation_timestamp, is_sync=True))
     
     # =====================================================================
     # HYBRID GENERATION (Best of Both Worlds)
@@ -1570,65 +1458,58 @@ Key focus areas include {', '.join(topic_analysis.priority_areas[:3])} requiring
     
     def _create_llm_system_prompt(self) -> str:
         """Create the system prompt for LLM-based sequence generation."""
-        return """You are an expert research strategist and agent orchestration specialist. Your role is to analyze research topics and generate strategic sequences of specialized research agents.
+        return """You are a research sequence generation expert. Your ONLY task is to output a complete, valid JSON object.
 
-## Your Task
-Analyze the given research topic and available agents, then generate exactly 3 distinct strategic sequences for conducting comprehensive research.
+## CRITICAL REQUIREMENTS - READ CAREFULLY
+1. You MUST respond with ONLY a complete JSON object - no other text, explanations, or markdown
+2. Start immediately with '{' and end with '}' 
+3. Include ALL required fields exactly as specified
+4. Generate exactly 3 sequences with 2-4 agents each
 
-## Key Principles
-1. **Strategic Diversity**: Each sequence should represent a fundamentally different research approach
-2. **Agent Synergy**: Agents should build on each other's work in logical progression  
-3. **Comprehensive Coverage**: Sequences should collectively cover all important research angles
-4. **Efficiency**: Avoid redundancy while ensuring thorough investigation
-5. **Intelligent Matching**: Match agent capabilities to research requirements based on expertise, responsibilities, and typical use cases
-6. **Natural Handoffs**: Use completion indicators to ensure smooth transitions between agents
-
-## Research Approach Types
-- **Foundational-First**: Start with background/fundamentals, then specialized analysis
-- **Problem-Solution**: Identify problems/gaps, then explore solutions and implementations
-- **Comparative**: Compare different approaches, technologies, or methodologies
-- **Stakeholder-Centric**: Analyze from different stakeholder perspectives
-- **Timeline-Based**: Historical context → current state → future trends
-
-## Agent Selection Guidelines
-- **Expertise Matching**: Consider each agent's expertise areas and how they align with research needs
-- **Capability Analysis**: Review core responsibilities to understand what each agent can deliver
-- **Use Case Alignment**: Match agent typical use cases with research requirements
-- **Sequential Logic**: Ensure logical information flow between agents (e.g., research → analysis → synthesis)
-- **Complementary Skills**: Select agents with complementary rather than overlapping capabilities
-- **Completion Signals**: Use completion indicators to understand when agents naturally hand off to others
-- **Information Dependencies**: Consider what each agent needs from previous agents to be effective
-
-## Required JSON Output Structure
-You must output a JSON object with exactly these fields:
-```json
+## EXACT JSON STRUCTURE REQUIRED:
 {
-  "research_analysis": "string - Analysis of the research requirements",
+  "research_analysis": "Brief analysis of research requirements (1-2 sentences)",
   "sequences": [
     {
-      "sequence_name": "string - Descriptive name for sequence strategy",
-      "agent_names": ["string"] - Ordered list of agent names,
-      "rationale": "string - Detailed reasoning for effectiveness",
-      "approach_description": "string - High-level research approach",
-      "expected_outcomes": ["string"] - Expected outcomes,
-      "confidence_score": 0.0-1.0 - Confidence in effectiveness,
-      "research_focus": "string - Primary research focus"
+      "sequence_name": "Strategic name for this sequence",
+      "agent_names": ["agent1", "agent2", "agent3"],
+      "rationale": "Why this sequence is effective",
+      "approach_description": "High-level research approach",
+      "expected_outcomes": ["outcome1", "outcome2"],
+      "confidence_score": 0.8,
+      "research_focus": "Primary focus area"
+    },
+    {
+      "sequence_name": "Strategic name for second sequence",
+      "agent_names": ["agent2", "agent4"],
+      "rationale": "Why this sequence works",
+      "approach_description": "Different research approach",
+      "expected_outcomes": ["outcome3", "outcome4"],
+      "confidence_score": 0.7,
+      "research_focus": "Secondary focus area"
+    },
+    {
+      "sequence_name": "Strategic name for third sequence",
+      "agent_names": ["agent1", "agent3", "agent5"],
+      "rationale": "Why this sequence complements others",
+      "approach_description": "Third research approach",
+      "expected_outcomes": ["outcome5"],
+      "confidence_score": 0.9,
+      "research_focus": "Tertiary focus area"
     }
-    // exactly 3 sequence objects
   ],
-  "reasoning_summary": "string - Summary of overall reasoning approach",
-  "recommended_sequence": 0-2 - Index of recommended sequence,
-  "alternative_considerations": ["string"] - Alternative approaches
+  "reasoning_summary": "Brief summary of why these 3 sequences provide comprehensive coverage",
+  "recommended_sequence": 0,
+  "alternative_considerations": ["alternative1", "alternative2"]
 }
-```
 
-## Output Requirements
-- Exactly 3 sequences, each with 2-4 agents
-- Clear rationale for each sequence's approach
-- Confidence scores based on agent capabilities match to research needs
-- Identify which sequence you recommend and why
+## AGENT SELECTION STRATEGY
+- Use agents based on their expertise areas and typical use cases
+- Create diverse sequences: foundational → analytical, comparative analysis, stakeholder-focused
+- Ensure logical flow: research → analysis → synthesis
+- Match agent capabilities to research requirements
 
-CRITICAL: Respond with ONLY the valid JSON object structure shown above. Do not include any thinking, explanations, markdown code blocks, or text outside the JSON structure. Do not use <think> tags or any other XML tags. Start your response directly with the opening brace {."""
+REMEMBER: Output ONLY the JSON object starting with { and ending with }. NO OTHER TEXT."""
     
     def _create_llm_user_prompt(self, input_data: SequenceGenerationInput) -> str:
         """Create the user prompt with research context and available agents."""
@@ -1704,36 +1585,112 @@ For each sequence:
 Output your response as valid JSON matching the SequenceGenerationOutput schema."""
     
     def _parse_llm_response(self, raw_content: str) -> SequenceGenerationOutput:
-        """Parse the raw LLM response into a structured output."""
+        """Parse the raw LLM response into a structured output with enhanced error handling."""
+        import re
+        
         logger.debug(f"Raw LLM response: {raw_content[:500]}...")  # Log first 500 chars
         
-        # Try to extract JSON from the response
+        # Clean the content first to handle reasoning model thinking tags
+        cleaned_content = self._clean_reasoning_model_output(raw_content)
+        logger.debug(f"Cleaned content: {cleaned_content[:300]}...")
+        
+        # Try to extract and validate JSON from the response
         try:
-            # Look for JSON structure in the response
-            # Handle cases where there might be code blocks or extra text
+            # Multiple JSON extraction strategies with better error handling
+            json_content = self._extract_json_from_content(cleaned_content)
             
-            # First try to find JSON code block
-            json_start_markers = ['```json\n', '```\n{', '{']
+            if not json_content:
+                raise ValueError("No JSON content could be extracted from response")
+                
+            logger.debug(f"Extracted JSON content: {json_content[:200]}...")
             
-            start_idx = -1
+            # Parse JSON with detailed error reporting
+            try:
+                parsed_json = json.loads(json_content)
+                logger.debug(f"Successfully parsed JSON with keys: {list(parsed_json.keys())}")
+            except json.JSONDecodeError as json_error:
+                logger.error(f"JSON decode error at line {json_error.lineno}, column {json_error.colno}: {json_error.msg}")
+                logger.debug(f"Failed JSON content: {json_content}")
+                # Try to provide helpful context about the error location
+                lines = json_content.split('\n')
+                if json_error.lineno <= len(lines):
+                    error_line = lines[json_error.lineno - 1] if json_error.lineno > 0 else lines[0]
+                    logger.debug(f"Error near: {error_line}")
+                raise ValueError(f"Invalid JSON structure: {json_error}")
             
-            # Try different JSON extraction strategies
-            for start_marker in json_start_markers:
-                start_pos = raw_content.find(start_marker)
-                if start_pos != -1:
-                    start_idx = start_pos + len(start_marker)
-                    if start_marker == '{':
-                        start_idx = start_pos  # Include the opening brace
-                    break
+            # Validate required fields before schema validation
+            missing_fields = self._check_required_fields(parsed_json)
+            if missing_fields:
+                logger.error(f"LLM response missing required fields: {missing_fields}")
+                logger.debug(f"Available fields: {list(parsed_json.keys())}")
+                raise ValueError(f"Response missing required fields: {missing_fields}")
             
-            if start_idx == -1:
-                raise ValueError("No JSON structure found in response")
+            # Add generation mode if not present
+            if "generation_mode" not in parsed_json:
+                parsed_json["generation_mode"] = "llm_based"
+                logger.debug("Added missing generation_mode field")
             
-            # Find the end of JSON
-            brace_count = 0
-            json_end_idx = -1
+            # Validate and create structured output
+            try:
+                response = SequenceGenerationOutput(**parsed_json)
+                logger.info(f"Successfully parsed LLM response with {len(response.sequences)} sequences")
+                return response
+            except ValidationError as validation_error:
+                logger.error(f"Schema validation failed: {validation_error}")
+                logger.debug(f"Parsed JSON keys: {list(parsed_json.keys())}")
+                # Log detailed validation errors
+                for error in validation_error.errors():
+                    logger.debug(f"Validation error: {error['loc']} - {error['msg']}")
+                raise ValueError(f"Schema validation failed: {validation_error}")
             
-            for i, char in enumerate(raw_content[start_idx:], start_idx):
+        except Exception as parse_error:
+            logger.error(f"Failed to parse LLM response: {parse_error}")
+            logger.debug(f"Raw content length: {len(raw_content)}")
+            logger.debug(f"Cleaned content length: {len(cleaned_content)}")
+            raise Exception(f"JSON parsing failed: {parse_error}")
+    
+    def _extract_json_from_content(self, content: str) -> Optional[str]:
+        """Extract JSON content from various response formats."""
+        import re
+        
+        # Strategy 1: Look for JSON code blocks first
+        json_code_block_patterns = [
+            r'```json\s*(\{.*?\})\s*```',
+            r'```\s*(\{.*?\})\s*```'
+        ]
+        
+        for pattern in json_code_block_patterns:
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                logger.debug("Found JSON in code block")
+                return match.group(1).strip()
+        
+        # Strategy 2: Look for standalone JSON objects
+        start_pos = content.find('{')
+        if start_pos == -1:
+            logger.debug("No opening brace found in content")
+            return None
+        
+        # Find the end of JSON using brace counting with better error handling
+        brace_count = 0
+        json_end_idx = -1
+        in_string = False
+        escape_next = False
+        
+        for i, char in enumerate(content[start_pos:], start_pos):
+            if escape_next:
+                escape_next = False
+                continue
+                
+            if char == '\\':
+                escape_next = True
+                continue
+                
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            
+            if not in_string:
                 if char == '{':
                     brace_count += 1
                 elif char == '}':
@@ -1741,26 +1698,162 @@ Output your response as valid JSON matching the SequenceGenerationOutput schema.
                     if brace_count == 0:
                         json_end_idx = i + 1
                         break
+        
+        if json_end_idx == -1:
+            # Fallback: look for last closing brace
+            json_end_idx = content.rfind('}') + 1
+            if json_end_idx == 0:
+                logger.debug("No closing brace found")
+                return None
+            logger.warning("Using fallback brace detection - JSON may be malformed")
+        
+        return content[start_pos:json_end_idx].strip()
+    
+    def _check_required_fields(self, parsed_json: Dict[str, Any]) -> List[str]:
+        """Check for required fields in parsed JSON."""
+        required_fields = [
+            "research_analysis",
+            "sequences", 
+            "reasoning_summary",
+            "recommended_sequence",
+            "alternative_considerations"
+        ]
+        
+        missing_fields = []
+        for field in required_fields:
+            if field not in parsed_json:
+                missing_fields.append(field)
+            elif field == "sequences" and (not isinstance(parsed_json[field], list) or len(parsed_json[field]) == 0):
+                missing_fields.append(f"{field} (empty or invalid)")
+        
+        return missing_fields
+    
+    def _parse_llm_response_with_retry(self, raw_content: str, attempt: int) -> SequenceGenerationOutput:
+        """Parse LLM response with context about retry attempts."""
+        try:
+            return self._parse_llm_response(raw_content)
+        except Exception as e:
+            # Add context about retry attempt to the error
+            if attempt > 0:
+                logger.warning(f"LLM response parsing failed on retry attempt {attempt}: {e}")
+            raise e
+    
+    async def _generate_llm_with_retry(
+        self,
+        input_data: SequenceGenerationInput,
+        start_time: float,
+        generation_timestamp: str,
+        is_sync: bool = False
+    ) -> SequenceGenerationResult:
+        """Generate sequences using LLM with retry mechanism for malformed responses."""
+        
+        max_retries = 2  # Allow 2 retries for malformed responses
+        last_error = None
+        
+        for attempt in range(max_retries + 1):  # 0, 1, 2 (3 total attempts)
+            try:
+                # Prepare messages
+                system_message = SystemMessage(content=self._llm_system_prompt)
+                user_message = HumanMessage(content=self._create_llm_user_prompt(input_data))
+                
+                messages = [system_message, user_message]
+                
+                # Calculate input tokens (approximate)
+                input_text = self._llm_system_prompt + self._create_llm_user_prompt(input_data)
+                input_token_count = len(input_text.split()) * 1.3  # Rough approximation
+                
+                # Generate response using configurable model
+                model = configurable_model.with_config(self.model_config)
+                
+                attempt_msg = f" (attempt {attempt + 1}/{max_retries + 1})" if attempt > 0 else ""
+                logger.info(f"Generating sequences for research topic: {input_data.research_topic}{attempt_msg}")
+                
+                # Use sync or async invoke based on parameter
+                if is_sync:
+                    raw_response = model.invoke(messages)
+                else:
+                    raw_response = await model.ainvoke(messages)
+                
+                # Extract and parse JSON response with retry handling
+                response = self._parse_llm_response_with_retry(raw_response.content, attempt)
+                
+                generation_time = time.time() - start_time
+                
+                # Calculate output tokens (approximate)
+                output_text = json.dumps(response.dict() if hasattr(response, 'dict') else str(response))
+                output_token_count = len(output_text.split()) * 1.3
+                
+                metadata = SequenceGenerationMetadata(
+                    generation_timestamp=generation_timestamp,
+                    model_used=str(model),
+                    input_token_count=int(input_token_count),
+                    output_token_count=int(output_token_count),
+                    generation_time_seconds=generation_time,
+                    fallback_used=False,
+                    generation_mode="llm_based"
+                )
+                
+                success_msg = f"Successfully generated {len(response.sequences)} sequences in {generation_time:.2f}s"
+                if attempt > 0:
+                    success_msg += f" after {attempt} retry(s)"
+                logger.info(success_msg)
+                
+                return SequenceGenerationResult(
+                    output=response,
+                    metadata=metadata,
+                    success=True
+                )
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"LLM generation attempt {attempt + 1} failed: {e}")
+                
+                # For specific parsing errors, add helpful context
+                if "missing required fields" in str(e) or "Schema validation failed" in str(e):
+                    logger.debug(f"LLM response format issue detected. Will retry with clearer instructions.")
+                
+                # If this is not the last attempt, continue to retry
+                if attempt < max_retries:
+                    logger.info(f"Retrying LLM sequence generation (attempt {attempt + 2})...")
+                    continue
+                else:
+                    logger.error(f"All {max_retries + 1} attempts failed. Error: {last_error}")
+                    break
+        
+        # All retries exhausted, use fallback generation
+        if is_sync:
+            return self._generate_fallback_sync(input_data, start_time, generation_timestamp, str(last_error))
+        else:
+            return await self._generate_fallback(input_data, start_time, generation_timestamp, str(last_error))
+
+    def _clean_reasoning_model_output(self, content: str) -> str:
+        """Clean reasoning model output by removing thinking tags and other artifacts.
+        
+        Args:
+            content: Raw content from reasoning model
             
-            if json_end_idx == -1:
-                # Fallback to rfind
-                json_end_idx = raw_content.rfind('}') + 1
-                if json_end_idx == 0:
-                    raise ValueError("No closing brace found in JSON")
-            
-            json_content = raw_content[start_idx:json_end_idx].strip()
-            logger.debug(f"Extracted JSON content: {json_content[:200]}...")
-            
-            parsed_json = json.loads(json_content)
-            
-            # Add generation mode to output if not present
-            if "generation_mode" not in parsed_json:
-                parsed_json["generation_mode"] = "llm_based"
-            
-            response = SequenceGenerationOutput(**parsed_json)
-            return response
-            
-        except (json.JSONDecodeError, ValueError, ValidationError) as parse_error:
-            logger.error(f"Failed to parse LLM response as JSON: {parse_error}")
-            logger.debug(f"Problematic content: {raw_content}")
-            raise Exception(f"JSON parsing failed: {parse_error}")
+        Returns:
+            Cleaned content with thinking tags removed
+        """
+        import re
+        
+        # Remove thinking tags and their content
+        thinking_pattern = r'<thinking>.*?</thinking>'
+        cleaned = re.sub(thinking_pattern, '', content, flags=re.DOTALL)
+        
+        # Remove other common reasoning artifacts
+        artifacts_patterns = [
+            r'<reflection>.*?</reflection>',
+            r'<analysis>.*?</analysis>',
+            r'<reasoning>.*?</reasoning>',
+        ]
+        
+        for pattern in artifacts_patterns:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL)
+        
+        # Clean up extra whitespace
+        cleaned = re.sub(r'\n\s*\n', '\n\n', cleaned)
+        cleaned = cleaned.strip()
+        
+        logger.debug(f"Cleaned reasoning model output from {len(content)} to {len(cleaned)} chars")
+        return cleaned

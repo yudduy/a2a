@@ -14,7 +14,9 @@ completion_indicators:
   - "Implementation roadmap created"
   - "Final report completed"
   - "Executive summary finalized"
-tools: null
+tools:
+  - think_tool
+  - ResearchComplete
 examples:
   - "Strategic roadmap synthesis for digital transformation initiative"
   - "Comprehensive market entry strategy combining research, analysis, and technical feasibility"

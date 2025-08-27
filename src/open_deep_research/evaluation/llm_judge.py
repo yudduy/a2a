@@ -6,6 +6,14 @@ import time
 from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 
+# Ensure List is available at module level - defensive programming against import issues
+try:
+    from typing import List as typing_List
+    List = typing_List
+except ImportError:
+    # Fallback for older Python versions or import issues
+    List = list
+
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage

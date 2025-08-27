@@ -14,7 +14,10 @@ completion_indicators:
   - "Technology stack evaluated"
   - "Performance requirements specified"
   - "Technical recommendations finalized"
-tools: null
+tools:
+  - tavily_search
+  - think_tool
+  - ResearchComplete
 examples:
   - "Microservices architecture design for e-commerce platform scalability"
   - "Technology stack evaluation for real-time data processing system"
