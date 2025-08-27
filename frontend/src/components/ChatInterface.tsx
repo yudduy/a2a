@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Message } from '@langchain/langgraph-sdk';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, CopyCheck, Activity, Loader2 } from 'lucide-react';
+import { Copy, CopyCheck, Bot, Loader2 } from 'lucide-react';
 import { InputForm } from '@/components/InputForm';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
@@ -269,7 +269,7 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
   return (
     <div className="flex items-start gap-3 w-full max-w-none">
       <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-1">
-        <Activity className="w-4 h-4 text-green-400" />
+        <Bot className="w-4 h-4 text-green-400" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="bg-neutral-800 rounded-2xl p-4 shadow-sm max-w-none">
