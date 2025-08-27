@@ -14,9 +14,7 @@ import {
   findToolMessageForCall,
 } from '@/types/messages';
 import { ToolCall } from '@/types/tools';
-// import ParallelTabContainer from '@/components/ParallelTabContainer';
 import ParallelResearchInterface from '@/components/ParallelResearchInterface';
-import SupervisorAnnouncementMessage from '@/components/SupervisorAnnouncementMessage';
 import { LLMGeneratedSequence, RoutedMessage } from '@/types/parallel';
 import { EnhancedErrorBoundary } from '@/components/ui/enhanced-error-boundary';
 
@@ -347,6 +345,189 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
   );
 };
 
+// Supervisor Chat Message - Converts sequences to normal chat format
+interface SupervisorChatMessageProps {
+  group: MessageGroup;
+  mdComponents: any;
+  handleCopy: (text: string, messageId: string) => void;
+  copiedMessageId: string | null;
+  allMessages: Message[];
+  onTabsInitialized?: () => void;
+  isLoading?: boolean;
+}
+
+const SupervisorChatMessage: React.FC<SupervisorChatMessageProps> = ({
+  group,
+  mdComponents,
+  handleCopy,
+  copiedMessageId,
+  allMessages,
+  onTabsInitialized,
+  isLoading
+}) => {
+  const messageId = group.primaryMessage.id || '';
+  const [hasLaunched, setHasLaunched] = useState(false);
+  
+  // Parse thinking sections from message content
+  const parsedContent = MessageContentParser.parse(group.primaryMessage);
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
+
+  const toggleThinking = (thinkingId: string) => {
+    setExpandedThinking(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(thinkingId)) {
+        newSet.delete(thinkingId);
+      } else {
+        newSet.add(thinkingId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleLaunch = () => {
+    setHasLaunched(true);
+    onTabsInitialized?.();
+  };
+
+  // Generate sequence content in markdown format
+  const generateSequenceContent = () => {
+    const sequences = group.sequences || [];
+    if (sequences.length === 0) return '';
+
+    const sequenceText = sequences.map((seq, index) => {
+      const agents = seq.agent_names.map(name => name.replace('_', ' ')).join(' → ');
+      return `**${index + 1}. ${seq.sequence_name}**\n- **Agents**: ${agents}\n- **Approach**: ${seq.approach_description}\n- **Focus**: ${seq.research_focus}`;
+    }).join('\n\n');
+
+    return `I have compiled a research brief and generated ${sequences.length} specialized research sequences:\n\n${sequenceText}\n\nReady to launch parallel research with these sequences.`;
+  };
+
+  const sequenceContent = generateSequenceContent();
+  const messageContent = sequenceContent || (typeof group.primaryMessage.content === 'string' 
+    ? group.primaryMessage.content 
+    : JSON.stringify(group.primaryMessage.content));
+
+  return (
+    <div className="flex items-start gap-3 w-full max-w-none">
+      <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+        <Bot className="w-4 h-4 text-green-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="bg-neutral-800 rounded-2xl p-4 shadow-sm max-w-none">
+          {/* Main content */}
+          <div className="prose prose-invert max-w-none">
+            {/* Pre-thinking content */}
+            {parsedContent.preThinking && (
+              <ReactMarkdown components={mdComponents}>
+                {parsedContent.preThinking}
+              </ReactMarkdown>
+            )}
+            
+            {/* Thinking sections */}
+            {parsedContent.thinkingSections.length > 0 && (
+              <div className="my-4">
+                <ThinkingSections
+                  sections={parsedContent.thinkingSections}
+                  expandedSections={expandedThinking}
+                  onToggleSection={toggleThinking}
+                />
+              </div>
+            )}
+            
+            {/* Post-thinking content or sequence content */}
+            {parsedContent.postThinking && (
+              <ReactMarkdown components={mdComponents}>
+                {parsedContent.postThinking}
+              </ReactMarkdown>
+            )}
+            
+            {/* Sequence content */}
+            <ReactMarkdown components={mdComponents}>
+              {messageContent}
+            </ReactMarkdown>
+          </div>
+          
+          {/* Launch button for parallel research */}
+          {group.sequences && group.sequences.length > 0 && (
+            <div className="mt-4 p-3 border border-neutral-700 rounded-lg bg-neutral-800/50">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-neutral-200 mb-1">Ready to launch parallel research</p>
+                  <p className="text-xs text-neutral-400">
+                    Start all {group.sequences.length} sequences simultaneously in side-by-side view
+                  </p>
+                </div>
+                <Button
+                  onClick={handleLaunch}
+                  disabled={hasLaunched || isLoading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 font-medium ml-4"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Launching...
+                    </>
+                  ) : hasLaunched ? (
+                    <>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Active
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="w-4 h-4 mr-2" />
+                      Start Research
+                    </>
+                  )}
+                </Button>
+              </div>
+              {hasLaunched && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-green-400">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  Parallel research interface active below
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Tool calls and results */}
+          {group.toolCalls.length > 0 && (
+            <div className="mt-4 space-y-3">
+              {group.toolCalls.map((toolCall, index) => {
+                const toolResult = findToolMessageForCall(allMessages, toolCall.id || '');
+                return (
+                  <ToolMessageDisplay
+                    key={toolCall.id || index}
+                    toolCall={toolCall}
+                    toolMessage={toolResult || undefined}
+                    isExpanded={false}
+                    onToggle={() => {}}
+                  />
+                );
+              })}
+            </div>
+          )}
+          
+          {/* Copy button */}
+          <div className="flex justify-end mt-3 pt-2 border-t border-neutral-700">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleCopy(messageContent, messageId)}
+              className="text-neutral-400 hover:text-neutral-200 h-8 px-2"
+            >
+              {copiedMessageId === messageId ? (
+                <CopyCheck className="w-4 h-4" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ============================================================================
 // MAIN CHAT INTERFACE COMPONENT - UNIFIED
 // ============================================================================
@@ -491,12 +672,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           mdComponents={mdComponents}
                         />
                       ) : group.type === 'supervisor_announcement' ? (
-                        <SupervisorAnnouncementMessage
-                          sequences={group.sequences || []}
+                        <SupervisorChatMessage
+                          group={group}
+                          mdComponents={mdComponents}
+                          handleCopy={handleCopy}
+                          copiedMessageId={copiedMessageId}
+                          allMessages={messages}
                           onTabsInitialized={onTabsInitialized}
                           isLoading={isLoading}
-                          researchQuery={group.primaryMessage?.content?.toString() || "research request"}
-                          className="max-w-full"
                         />
                       ) : (
                         <AiMessageBubble
@@ -547,43 +730,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 );
               })}
               
-              {/* Fallback parallel tabs - show if we have sequences but no supervisor announcement displayed yet */}
-              {parallelTabsState?.sequences && 
-               parallelTabsState.sequences.length > 0 && 
-               !messageGroups.some(group => group.type === 'supervisor_announcement') && (
-                <div className="space-y-3">
-                  <EnhancedErrorBoundary 
-                    level="feature" 
-                    resetKeys={[parallelTabsState.sequences.length]}
-                  >
-                    <SupervisorAnnouncementMessage
-                      sequences={parallelTabsState.sequences}
-                      onTabsInitialized={onTabsInitialized}
-                      isLoading={isLoading}
-                      researchQuery="Parallel research sequences generated"
-                      className="max-w-full"
-                    />
-                  </EnhancedErrorBoundary>
-                  
-                  {/* Show side-by-side interface immediately if sequences are active */}
-                  {parallelTabsState?.isActive && (
-                    <EnhancedErrorBoundary 
-                      level="feature" 
-                      resetKeys={[parallelTabsState?.sequences?.length || 0]}
-                    >
-                      <div className="mt-4 h-[600px] border border-neutral-700/50 rounded-lg overflow-hidden bg-neutral-900/50">
-                        <ParallelResearchInterface
-                          sequences={parallelTabsState?.sequences || []}
-                          parallelMessages={parallelMessages || {}}
-                          activeTabId={parallelTabsState?.activeTabId || ''}
-                          onTabChange={onParallelTabChange || (() => {})}
-                          isLoading={isLoading}
-                        />
-                      </div>
-                    </EnhancedErrorBoundary>
-                  )}
-                </div>
-              )}
               
               {/* Loading indicator */}
               {isLoading && (
