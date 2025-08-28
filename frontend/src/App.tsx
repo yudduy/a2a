@@ -251,7 +251,20 @@ export default function App() {
     stop: streamStop,
   } = useStream({
     assistantId: 'Deep Researcher',
-    apiUrl: import.meta.env.DEV ? 'http://127.0.0.1:2024' : (import.meta.env.VITE_API_URL || 'https://your-production-api-host.com'),
+    apiUrl: (() => {
+      if (import.meta.env.DEV) {
+        const envUrl = import.meta.env.VITE_API_URL as string | undefined;
+        if (envUrl && envUrl.length > 0) {
+          return envUrl;
+        }
+        return window.location.origin;
+      }
+      const prodUrl = import.meta.env.VITE_API_URL as string | undefined;
+      if (!prodUrl || prodUrl.includes('your-production-api-host.com')) {
+        console.error('VITE_API_URL is missing or placeholder in production. Set a valid API endpoint.');
+      }
+      return prodUrl || 'https://your-production-api-host.com';
+    })(),
     threadId,
     // streamMode: 'messages' as const, // Commented out as this property doesn't exist in the hook
     onThreadId: setThreadId,

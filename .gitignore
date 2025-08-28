@@ -28,7 +28,6 @@ wheels/
 venv/
 env/
 ENV/
-.env
 
 # IDE specific files
 .idea/
@@ -51,10 +50,9 @@ htmlcov/
 logs/
 
 # Local development
+.env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 
 # Dependencies
 node_modules/
@@ -74,19 +72,16 @@ temp/
 # Security and secrets
 *.key
 *.secret
-*credentials*
-config.json
+credentials/**
+config.local.json
 secrets.json
-.env*
 !.env.example
 
 # Additional Python patterns
-*.pyo
-*.pyd
 
 # OS specific
 Thumbs.db
 
 # Additional test coverage
-.nyc_output/
-coverage/
+/.nyc_output/
+/coverage/

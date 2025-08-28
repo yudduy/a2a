@@ -5,7 +5,8 @@ Open Deep Research is a configurable, fully open-source deep research agent that
 
 **Repository**: https://github.com/langchain-ai/open_deep_research  
 **License**: MIT  
-**Status**: Production-ready, actively maintained  
+**Status**: Stable / Production-ready as of 2025-08, actively maintained  
+**Security**: See `SECURITY.md` for our Security Policy and responsible disclosure process; report issues via GitHub Security Advisories or email `security@your-org.com`.
 **Community**: Welcome contributors - see CONTRIBUTING.md for guidelines
 
 ## System Architecture
@@ -201,42 +202,91 @@ The system includes comprehensive evaluation via:
 ## Security and Deployment
 
 ### Security Features
-- **Authentication**: LangGraph deployment authentication handler with JWT token validation
-- **API Key Management**: Secure environment variable handling via .env files (never commit secrets)
-- **Session Isolation**: Complete isolation between research sessions with sandboxed execution
-- **Input Validation**: Comprehensive sanitization of user inputs and AI agent outputs
-- **Rate Limiting**: Built-in protection against abuse and DoS attacks
-- **Audit Logging**: Security event tracking for monitoring and compliance
-- **No Data Persistence**: Research data not stored permanently for privacy protection
+- **Authentication (JWT)**: Only `RS256`/`ES256` accepted; require `iss` and `aud` claims; short access-token TTL (≤15m) with refresh-token rotation and server-side revocation; strict signature verification with clock-skew tolerance ≤120s.
+- **API Key Management**: Secrets sourced from environment/secret manager (never committed); least-privilege keys with periodic rotation and scoping.
+- **Session Isolation**: Complete isolation between research sessions with sandboxed execution.
+- **Input/Output Validation**: Schema/whitelist validation per endpoint; enforce content-type, max field lengths and payload sizes; reject unexpected fields; canonicalize and escape outputs; sanitize/guardrail AI outputs.
+- **Rate Limiting**: Per-user and per-IP limits with burst allowance using sliding-window or token-bucket; respond `429` and document exponential backoff policy; thresholds configurable and covered by tests.
+- **Audit Logging (Qualified)**: Security/audit logs are retained securely for a limited retention period, protected by access controls and encryption, and automatically purged per retention policy (retention can be configured where appropriate).
+- **No Data Persistence (Clarified)**: Research data is not persisted permanently. Only short-term, access-controlled audit logs required for security and compliance may be retained per policy.
+- **Verification & CI**: Unit/integration tests and CI checks assert JWT constraints, validation rules, rate limits, and log retention behavior; configuration defaults documented; monitoring/logging enable enforcement and incident investigation.
 
 ### Security Best Practices
-- Use strong API keys and rotate them regularly
-- Enable branch protection rules in production repositories
-- Monitor for security vulnerabilities in dependencies
-- Follow OWASP guidelines for AI/ML security
-- Implement proper error handling to prevent information leakage
+- Use a managed secrets store (e.g., Vault, AWS Secrets Manager); never commit secrets to the repo.
+- Enforce least-privilege API keys with regular rotation; provision environment-specific secrets.
+- Implement robust input validation, output redaction, and prompt-injection defenses aligned with OWASP LLM Top 10.
+- Apply rate limiting and access controls; log and audit access without leaking sensitive outputs.
+- Enable dependency vulnerability scanning (SCA) and schedule regular threat modeling.
 
 ### Deployment Options
-- **Development**: Local LangGraph Studio (`uvx langgraph dev --allow-blocking`)
-- **Production**: LangGraph Cloud deployment with proper security configuration
-- **Open Agent Platform**: UI for non-technical users to configure agents
-- **Container Deployment**: Docker support for scalable deployments
+- **Development**: Local LangGraph Studio (`uvx langgraph dev --allow-blocking`).
+- **Containerized Production**: Recommended to deploy containers with restricted permissions and secret files mounted read-only. Example `docker-compose.yml`:
+
+```yaml
+version: "3.9"
+services:
+  deep-researcher:
+    image: ghcr.io/langchain-ai/open-deep-research:latest
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    environment:
+      - LOG_LEVEL=info
+      - RATE_LIMIT_USER_PER_MINUTE=60
+      - RATE_LIMIT_IP_PER_MINUTE=120
+      - JWT_AUDIENCE=odr
+      - JWT_ISSUER=https://issuer.example.com
+      - VITE_API_URL=https://api.example.com
+    secrets:
+      - openai_api_key
+      - anthropic_api_key
+    ports:
+      - "2024:2024"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key
+  anthropic_api_key:
+    file: ./secrets/anthropic_api_key
+```
+
+Note: For production at scale, use an orchestrator (e.g., Kubernetes) with network policies, sealed/encrypted secrets, and per-namespace RBAC rather than `env_file`.
 
 ### Production Checklist
-- [ ] Environment variables properly configured
-- [ ] API rate limits configured
-- [ ] Monitoring and alerting set up
-- [ ] Security scanning enabled
-- [ ] Backup and recovery procedures tested
+**Security**
+- [ ] Secrets in a managed store; rotation policy documented and automated
+- [ ] JWT configuration validated (alg, claims, TTL); refresh token revocation in place
+- [ ] Role/permission reviews performed; access audit logging enabled and retained per policy
+
+**Observability**
+- [ ] Centralized logs with retention and log aggregation (e.g., ELK, CloudWatch)
+- [ ] Metrics exported (latency, error rate, cost) with SLO/SLI defined and alerts configured
+
+**Operations**
+- [ ] CI/CD with policy checks, canary/rollback plan tested
+- [ ] Incident response runbooks and on-call rotation defined
+- [ ] Capacity planning done; autoscaling policies tested under load
+
+**Compliance & Data Protection**
+- [ ] Encryption in transit and at rest verified; DLP policies documented
+- [ ] Dependency vulnerability scanning and patch cadence established
+
+**Backups & DR**
+- [ ] Backups verified; RTO/RPO targets defined and tested
 
 ## Contributing Guidelines
 
 ### Code Quality Standards
-- Follow PEP 8 for Python code style and TypeScript/React best practices for frontend
-- Use type hints for better code documentation and maintainability
-- Write comprehensive docstrings for public functions and components
-- Maintain consistent error handling patterns across the codebase
-- Add unit tests for new functionality with appropriate coverage
+- Pre-commit hooks required (Python: `ruff`, `black`, `isort`, `mypy`; Frontend: `eslint`, `prettier`). Add `.pre-commit-config.yaml` and enforce hooks on commit.
+- Enable strict type checks (`mypy --strict`; TypeScript strict mode) in repo configs.
+- CI jobs must run linters, type checks, and tests with coverage (`pytest-cov`/`jest`) and enforce ≥80% line/branch coverage.
+- Maintain consistent error handling patterns and comprehensive docstrings for public APIs.
 
 ### Security Guidelines
 - **CRITICAL**: Never commit API keys, secrets, or credentials to the repository
@@ -246,22 +296,18 @@ The system includes comprehensive evaluation via:
 - Implement proper authentication and authorization for production deployments
 
 ### Performance Considerations
-- Optimize for token usage and API costs in AI interactions
-- Implement proper caching strategies for search results and model outputs
-- Use parallel execution patterns where appropriate for better performance
-- Monitor memory usage for large contexts and implement limits
-- Set reasonable timeouts for all network operations and model calls
+- Apply request timeouts and retry policies with exponential backoff and jitter.
+- Implement circuit breakers and bulkhead isolation around external AI/model calls.
+- Provide graceful degradation/fallbacks and clear cache invalidation strategies.
+- Enforce rate limiting and cost-aware throttling; surface dead-letter handling for failed jobs.
+- Expose metrics/alerts with configurable thresholds to tune limits and observe failures.
 
 ### Development Workflow
-- Follow the established repository structure and coding conventions
-- Test thoroughly before submitting pull requests
-- Use descriptive commit messages following conventional commit format
-- Update documentation when adding new features or changing APIs
-- Ensure all CI/CD checks pass before requesting review
+- Include governance artifacts: `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/`, commit conventions in `CONTRIBUTING.md`, and a `CODEOWNERS` file.
+- Follow repository structure and coding conventions; ensure all CI checks pass before review.
+- Test thoroughly; update documentation when adding features or changing APIs.
 
 ### Open Source Best Practices
-- Maintain clear and up-to-date documentation
-- Respond promptly to issues and pull requests from community
-- Follow semantic versioning for releases
-- Keep dependencies updated and secure
-- Provide clear examples and tutorials for new users
+- Provide and maintain `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, and a `MAINTAINERS.md` or `COMMUNITY.md`.
+- Enable automated dependency updates (e.g., Dependabot); document schedules and CI badges for builds and code scanning.
+- Follow semantic versioning; keep examples and docs current; respond promptly to community contributions.
