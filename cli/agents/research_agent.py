@@ -9,8 +9,13 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import uuid
 
-from ..core.a2a_client import A2AClient, AgentCard, Task, AgentResult
-from ..core.context_tree import ContextWindow
+try:
+    from ..core.a2a_client import A2AClient, AgentCard, Task, AgentResult
+    from ..core.context_tree import ContextWindow
+except ImportError:
+    # For running as standalone module
+    from core.a2a_client import A2AClient, AgentCard, Task, AgentResult
+    from core.context_tree import ContextWindow
 
 
 class ResearchAgent:

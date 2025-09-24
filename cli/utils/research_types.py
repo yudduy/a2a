@@ -82,7 +82,7 @@ class AgentCapability(BaseModel):
     completion_indicators: List[str] = Field(default_factory=list, description="Completion indicators")
 
 
-class SequenceStrategy(BaseModel):
+class SequenceStrategy:
     """Research sequence strategy."""
 
     THEORY_FIRST = "theory_first"
@@ -91,7 +91,7 @@ class SequenceStrategy(BaseModel):
     PARALLEL_ALL = "parallel_all"
 
 
-class AgentType(BaseModel):
+class AgentType:
     """Agent type enumeration."""
 
     ACADEMIC = "academic"
@@ -101,7 +101,7 @@ class AgentType(BaseModel):
     SYNTHESIS = "synthesis"
 
 
-class ConnectionState(BaseModel):
+class ConnectionState:
     """Connection state enumeration."""
 
     CONNECTING = "connecting"
@@ -111,7 +111,7 @@ class ConnectionState(BaseModel):
     FAILED = "failed"
 
 
-class DeliveryGuarantee(BaseModel):
+class DeliveryGuarantee:
     """Delivery guarantee enumeration."""
 
     AT_MOST_ONCE = "at_most_once"

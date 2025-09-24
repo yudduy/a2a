@@ -200,7 +200,12 @@ async def main():
                 await app.run_research(query, streaming=True)
 
             elif command == "train":
-                episodes = args[0] if args else 100
+                episodes = 100
+                if args:
+                    try:
+                        episodes = int(args[0])
+                    except (ValueError, TypeError):
+                        pass
                 await app.run_training(episodes)
 
             elif command == "stats":

@@ -21,9 +21,15 @@ from rich.columns import Columns
 from rich.spinner import Spinner
 from rich.status import Status
 
-from ..orchestration.langgraph_orchestrator import OrchestrationEngine, ResearchResult
-from ..orchestration.trace_collector import TraceCollector
-from ..utils.research_types import StreamMessage
+try:
+    from ..orchestration.langgraph_orchestrator import OrchestrationEngine, ResearchResult
+    from ..orchestration.trace_collector import TraceCollector
+    from ..utils.research_types import StreamMessage
+except ImportError:
+    # For running as standalone module
+    from orchestration.langgraph_orchestrator import OrchestrationEngine, ResearchResult
+    from orchestration.trace_collector import TraceCollector
+    from utils.research_types import StreamMessage
 
 
 class ResearchCLI:

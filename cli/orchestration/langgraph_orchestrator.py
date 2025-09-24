@@ -15,10 +15,17 @@ from langgraph.types import Command
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 
-from ..core.a2a_client import A2AClient, AgentCard, Task, AgentResult
-from ..core.context_tree import ContextTree, create_research_context_tree
-from ..utils.research_types import ResearchState, StreamMessage, RoutedMessage
-from ..agents.research_agent import ResearchAgent
+try:
+    from ..core.a2a_client import A2AClient, AgentCard, Task, AgentResult
+    from ..core.context_tree import ContextTree, create_research_context_tree
+    from ..utils.research_types import ResearchState, StreamMessage, RoutedMessage
+    from ..agents.research_agent import ResearchAgent
+except ImportError:
+    # For running as standalone module
+    from core.a2a_client import A2AClient, AgentCard, Task, AgentResult
+    from core.context_tree import ContextTree, create_research_context_tree
+    from utils.research_types import ResearchState, StreamMessage, RoutedMessage
+    from agents.research_agent import ResearchAgent
 
 
 class ResearchResult:
@@ -99,7 +106,7 @@ class OrchestrationEngine:
         Returns:
             Command to proceed to sequence generation
         """
-        query = state.get("query", "")
+        query = getattr(state, "query", "")
         self.logger.info(f"Analyzing research query: {query}")
 
         # Update state with query analysis
@@ -124,7 +131,7 @@ class OrchestrationEngine:
         Returns:
             Command to proceed to sequence execution
         """
-        query = state.get("query", "")
+        query = getattr(state, "query", "")
         self.logger.info("Generating strategic research sequences")
 
         # Generate 3 strategic sequences based on available agents
@@ -149,7 +156,7 @@ class OrchestrationEngine:
         Returns:
             Command to proceed to synthesis
         """
-        sequences = state.get("sequences", [])
+        sequences = getattr(state, "sequences", [])
         self.logger.info(f"Executing {len(sequences)} research sequences in parallel")
 
         # Execute sequences concurrently
@@ -188,7 +195,7 @@ class OrchestrationEngine:
         Returns:
             Command to proceed to evaluation
         """
-        execution_results = state.get("execution_results", [])
+        execution_results = getattr(state, "execution_results", [])
         self.logger.info(f"Synthesizing {len(execution_results)} execution results")
 
         # Combine all findings
@@ -202,7 +209,8 @@ class OrchestrationEngine:
                 all_insights.extend(result["insights"])
 
         # Create synthesis
-        synthesis = await self._create_synthesis(all_papers, all_insights, state.get("query", ""))
+        query = getattr(state, "query", "")
+        synthesis = await self._create_synthesis(all_papers, all_insights, query)
 
         return Command(
             update={
@@ -223,18 +231,24 @@ class OrchestrationEngine:
         Returns:
             Command to end execution
         """
-        synthesis = state.get("synthesis", "")
-        papers = state.get("execution_results", [])
+        synthesis = getattr(state, "synthesis", "")
+        execution_results = getattr(state, "execution_results", [])
 
         self.logger.info("Evaluating research quality")
 
+        # Combine all papers from all sequences
+        all_papers = []
+        for result in execution_results:
+            if isinstance(result, dict) and "papers" in result:
+                all_papers.extend(result["papers"])
+
         # Calculate quality metrics
-        quality_score = await self._calculate_quality_score(synthesis, papers)
+        quality_score = await self._calculate_quality_score(synthesis, all_papers)
 
         # Create final result
         final_result = ResearchResult(
             synthesis=synthesis,
-            papers=papers,
+            papers=all_papers,
             trace_id=f"research-{uuid.uuid4().hex}"
         )
 
@@ -292,9 +306,9 @@ class OrchestrationEngine:
         Returns:
             Execution results
         """
-        sequence_name = sequence["name"]
-        agents = sequence["agents"]
-        query = state.get("query", "")
+        sequence_name = sequence.get("name", "unknown")
+        agents = sequence.get("agents", [])
+        query = getattr(state, "query", "")
 
         self.logger.info(f"Executing sequence: {sequence_name}")
 
@@ -309,15 +323,16 @@ class OrchestrationEngine:
                 # Create task for agent
                 task = Task(
                     id=f"{sequence_name}-{agent_name}-{uuid.uuid4().hex}",
-                    description=f"Research: {query} (focus: {sequence['focus']})",
+                    description=f"Research: {query} (focus: {sequence.get('focus', '')})",
                     context_summary=f"Part of sequence: {sequence_name}"
                 )
 
                 # Execute agent task
                 try:
                     result = await agent.execute_task(task)
-                    sequence_results.append(result)
-                    combined_insights.extend(result.get("insights", []))
+                    if isinstance(result, dict):
+                        sequence_results.append(result)
+                        combined_insights.extend(result.get("insights", []))
                 except Exception as e:
                     self.logger.error(f"Agent {agent_name} failed: {e}")
                     continue
@@ -407,18 +422,19 @@ class OrchestrationEngine:
         final_state = await self.graph.ainvoke(initial_state)
 
         # Extract results
-        execution_results = final_state.get("execution_results", [])
-        synthesis = final_state.get("synthesis", f"No synthesis available for: {query}")
+        execution_results = getattr(final_state, "execution_results", [])
+        synthesis = getattr(final_state, "synthesis", f"No synthesis available for: {query}")
 
         # Combine all papers from all sequences
         all_papers = []
         for result in execution_results:
-            all_papers.extend(result.get("papers", []))
+            if isinstance(result, dict):
+                all_papers.extend(result.get("papers", []))
 
         return ResearchResult(
             synthesis=synthesis,
             papers=all_papers,
-            trace_id=final_state.get("trace_id")
+            trace_id=getattr(final_state, "trace_id", None)
         )
 
     async def execute_stream(self, query: str) -> AsyncGenerator[StreamMessage, None]:
@@ -441,8 +457,7 @@ class OrchestrationEngine:
         initial_state = ResearchState(
             query=query,
             status="streaming",
-            start_time=datetime.utcnow().isoformat(),
-            stream_writer=stream_writer
+            start_time=datetime.utcnow().isoformat()
         )
 
         # Execute with streaming
