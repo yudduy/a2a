@@ -13,7 +13,7 @@ Open Deep Research is a configurable, fully open-source deep research agent that
 
 ### Core Architecture Pattern
 The system follows an "always-parallel" architecture where:
-1. **Query Processing**: User submits research query through frontend
+1. **Query Processing**: User submits research query through CLI interface
 2. **LLM-Based Sequence Generation**: Generates 1-3 optimal agent sequences based on topic analysis
 3. **Parallel Execution**: All sequences execute simultaneously via SequentialSupervisor
 4. **Report Building**: Incremental report generation per sequence
@@ -70,17 +70,12 @@ Earlier research implementations for reference:
 - `multi_agent.py` - Supervisor-researcher multi-agent architecture
 - `legacy.md` - Legacy implementation documentation
 
-### Frontend (`frontend/`)
-Modern React + TypeScript interface:
-- `src/components/` - React components for research interface
-- `src/hooks/` - React hooks for state management and WebSocket communication
 - `src/types/` - TypeScript definitions for agents, messages, and parallel execution
 
 ## Development Environment
 
 ### Prerequisites
 - Python 3.11+ with UV package manager
-- Node.js 18+ for frontend development
 - API keys for model providers (OpenAI, Anthropic, Google, etc.)
 - Search API keys (Tavily, etc.)
 
@@ -283,9 +278,9 @@ Note: For production at scale, use an orchestrator (e.g., Kubernetes) with netwo
 ## Contributing Guidelines
 
 ### Code Quality Standards
-- Pre-commit hooks required (Python: `ruff`, `black`, `isort`, `mypy`; Frontend: `eslint`, `prettier`). Add `.pre-commit-config.yaml` and enforce hooks on commit.
-- Enable strict type checks (`mypy --strict`; TypeScript strict mode) in repo configs.
-- CI jobs must run linters, type checks, and tests with coverage (`pytest-cov`/`jest`) and enforce ≥80% line/branch coverage.
+- Pre-commit hooks required (Python: `ruff`, `black`, `isort`, `mypy`). Add `.pre-commit-config.yaml` and enforce hooks on commit.
+- Enable strict type checks (`mypy --strict`) in repo configs.
+- CI jobs must run linters, type checks, and tests with coverage (`pytest-cov`) and enforce ≥80% line/branch coverage.
 - Maintain consistent error handling patterns and comprehensive docstrings for public APIs.
 
 ### Security Guidelines

@@ -9,7 +9,14 @@ and Langfuse integration.
 import asyncio
 import logging
 import sys
+-import os
 from typing import Optional
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load environment variables from .env file
+except ImportError:
+    pass  # dotenv not available, skip loading
 
 from .core.cli_interface import ResearchCLI, CLICommandHandler
 from .orchestration.langgraph_orchestrator import OrchestrationEngine

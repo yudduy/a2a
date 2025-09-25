@@ -33,6 +33,20 @@ class TraceCollector:
         # Initialize Langfuse if available
         self._initialize_langfuse(langfuse_config)
 
+    @classmethod
+    def get_instance(cls, config: Optional[Dict[str, str]] = None) -> "TraceCollector":
+        """Get singleton instance of TraceCollector.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            TraceCollector instance
+        """
+        if not hasattr(cls, '_instance'):
+            cls._instance = cls(config)
+        return cls._instance
+
     def _initialize_langfuse(self, config: Optional[Dict[str, str]]):
         """Initialize Langfuse client.
 

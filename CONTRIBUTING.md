@@ -132,11 +132,6 @@ pytest tests/ -v
 python tests/run_evaluate.py --limit 5
 ```
 
-### Frontend Tests
-```bash
-cd frontend/
-npm test
-```
 
 ## Release Process
 

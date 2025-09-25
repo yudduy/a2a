@@ -56,6 +56,11 @@ class OrchestrationEngine:
         self.agent_registry: Dict[str, ResearchAgent] = {}
         self.active_executions: Dict[str, asyncio.Task] = {}
 
+        # Instance variables for capturing results during execution
+        self._current_synthesis: Optional[str] = None
+        self._current_papers: List[Dict[str, Any]] = []
+        self._current_trace_id: Optional[str] = None
+
     async def initialize(self):
         """Initialize orchestration engine components."""
         self.a2a_client = A2AClient()
@@ -203,14 +208,36 @@ class OrchestrationEngine:
         all_insights = []
 
         for result in execution_results:
-            if "papers" in result:
-                all_papers.extend(result["papers"])
-            if "insights" in result:
-                all_insights.extend(result["insights"])
+            # Handle both dictionary results and AgentResult objects
+            if isinstance(result, dict):
+                # Legacy format
+                if "papers" in result:
+                    all_papers.extend(result["papers"])
+                if "insights" in result:
+                    all_insights.extend(result["insights"])
+            elif hasattr(result, 'artifacts'):
+                # AgentResult format - extract insights from artifacts
+                for artifact in result.artifacts:
+                    if isinstance(artifact, dict) and "content" in artifact:
+                        # If artifact has content, treat it as an insight
+                        all_insights.append(artifact["content"])
+                    elif isinstance(artifact, str):
+                        # If artifact is a string, treat it as an insight
+                        all_insights.append(artifact)
+
+                # Also extract insights from summary if available
+                if hasattr(result, 'summary') and result.summary:
+                    all_insights.append(result.summary)
 
         # Create synthesis
         query = getattr(state, "query", "")
         synthesis = await self._create_synthesis(all_papers, all_insights, query)
+        self.logger.info(f"Synthesis created: {synthesis[:100]}... (length: {len(synthesis)})")
+
+        # Store synthesis in instance variable for capture during execution
+        self._current_synthesis = synthesis
+        self._current_papers = all_papers
+        self._current_trace_id = f"research-{uuid.uuid4().hex}"
 
         return Command(
             update={
@@ -330,9 +357,19 @@ class OrchestrationEngine:
                 # Execute agent task
                 try:
                     result = await agent.execute_task(task)
-                    if isinstance(result, dict):
+                    if result:
                         sequence_results.append(result)
-                        combined_insights.extend(result.get("insights", []))
+                        # Extract insights from AgentResult object
+                        if hasattr(result, 'artifacts'):
+                            # AgentResult format - extract insights from artifacts
+                            for artifact in result.artifacts:
+                                if isinstance(artifact, dict) and "content" in artifact:
+                                    combined_insights.append(artifact["content"])
+                                elif isinstance(artifact, str):
+                                    combined_insights.append(artifact)
+                        # Also extract from summary if available
+                        if hasattr(result, 'summary') and result.summary:
+                            combined_insights.append(result.summary)
                 except Exception as e:
                     self.logger.error(f"Agent {agent_name} failed: {e}")
                     continue
@@ -359,17 +396,56 @@ class OrchestrationEngine:
         if not papers and not insights:
             return f"No research results found for query: {query}"
 
-        synthesis_parts = [f"Research synthesis for: {query}\n"]
+        # If we have the synthesis agent available, use it for better synthesis
+        if hasattr(self, 'agent_registry') and 'synthesis_agent' in self.agent_registry:
+            self.logger.info(f"Attempting to use synthesis agent, available agents: {list(self.agent_registry.keys())}")
+            try:
+                synthesis_agent = self.agent_registry['synthesis_agent']
+                if synthesis_agent.model:
+                    self.logger.info("Synthesis agent found and has model, making API call")
+                    # Create a comprehensive synthesis using the synthesis agent
+                    synthesis_prompt = f"""Perform comprehensive research synthesis for the query: {query}
+
+Available research results:
+- Total papers found: {len(papers)}
+- Total insights: {len(insights)}
+
+Please provide a comprehensive synthesis that:
+1. Summarizes the key findings from all research
+2. Identifies major themes and patterns
+3. Provides integrated conclusions
+4. Highlights any important gaps or limitations
+5. Suggests areas for future research
+
+Research insights:
+{chr(10).join(f"- {insight}" for insight in insights[:20])}
+
+Please provide a detailed, well-structured synthesis report."""
+
+                    messages = [
+                        SystemMessage(content="You are an expert research synthesis agent. Provide comprehensive, well-structured synthesis reports based on research findings."),
+                        HumanMessage(content=synthesis_prompt)
+                    ]
+
+                    response = await synthesis_agent.model.ainvoke(messages)
+                    return f"## Comprehensive Research Synthesis\n\n{response.content}"
+
+            except Exception as e:
+                self.logger.error(f"Error in synthesis agent: {e}")
+
+        # Fallback to simple synthesis if synthesis agent fails
+        self.logger.info("Using fallback synthesis method")
+        synthesis_parts = [f"## Research Synthesis\n\n**Query:** {query}\n"]
 
         if papers:
-            synthesis_parts.append(f"Found {len(papers)} relevant papers:")
+            synthesis_parts.append(f"**Papers Found:** {len(papers)}")
             for i, paper in enumerate(papers[:5]):  # Limit to top 5
-                synthesis_parts.append(f"{i+1}. {paper.get('title', 'Unknown')}")
+                synthesis_parts.append(f"- {paper.get('title', 'Unknown Title')}")
 
         if insights:
-            synthesis_parts.append(f"\nKey insights ({len(insights)} total):")
-            for insight in insights[:10]:  # Limit to top 10
-                synthesis_parts.append(f"• {insight}")
+            synthesis_parts.append(f"\n**Key Insights:** ({len(insights)} total)")
+            for insight in insights[:15]:  # Limit to top 15
+                synthesis_parts.append(f"- {insight}")
 
         return "\n".join(synthesis_parts)
 
@@ -421,9 +497,28 @@ class OrchestrationEngine:
         # Execute workflow
         final_state = await self.graph.ainvoke(initial_state)
 
-        # Extract results
+        # Note: Instance variables are already initialized in __init__
+
+        # Extract results - try multiple sources for synthesis
         execution_results = getattr(final_state, "execution_results", [])
-        synthesis = getattr(final_state, "synthesis", f"No synthesis available for: {query}")
+        synthesis = getattr(final_state, "synthesis", None)
+
+        # Try to get synthesis from instance variable first (set during workflow)
+        if not synthesis:
+            synthesis = self._current_synthesis
+
+        # Fallback to extracting from final state
+        if not synthesis:
+            final_result = getattr(final_state, "final_result", None)
+            if final_result and hasattr(final_result, 'synthesis'):
+                synthesis = final_result.synthesis
+
+        # If still no synthesis, create a basic one
+        if not synthesis:
+            if execution_results:
+                synthesis = f"Research completed for query: {query}\n\n{len(execution_results)} research sequences executed successfully."
+            else:
+                synthesis = f"No synthesis available for: {query}"
 
         # Combine all papers from all sequences
         all_papers = []
@@ -448,11 +543,6 @@ class OrchestrationEngine:
         """
         self.logger.info(f"Starting streaming research execution for: {query}")
 
-        # Create stream writer
-        def stream_writer(message: Dict[str, Any]):
-            # This would be called by the graph nodes to emit streaming updates
-            pass
-
         # Initialize state with streaming
         initial_state = ResearchState(
             query=query,
@@ -460,9 +550,65 @@ class OrchestrationEngine:
             start_time=datetime.utcnow().isoformat()
         )
 
+        # Yield initial progress
+        yield StreamMessage(
+            message_id=str(uuid.uuid4()),
+            sequence_id="main",
+            message_type="progress",
+            timestamp=int(datetime.utcnow().timestamp() * 1000),
+            content={"type": "query_analysis", "status": "started"}
+        )
+
         # Execute with streaming
         async for event in self.graph.astream(initial_state):
             if isinstance(event, dict):
+                # Extract meaningful information from the event
+                node_name = list(event.keys())[0] if event else "unknown"
+                node_data = event[node_name] if event else {}
+
+                # Map node names to meaningful progress events
+                if "analyze_query" in node_name:
+                    yield StreamMessage(
+                        message_id=str(uuid.uuid4()),
+                        sequence_id="main",
+                        message_type="progress",
+                        timestamp=int(datetime.utcnow().timestamp() * 1000),
+                        content={"type": "query_analysis", "status": "completed"}
+                    )
+                elif "generate_sequences" in node_name:
+                    yield StreamMessage(
+                        message_id=str(uuid.uuid4()),
+                        sequence_id="main",
+                        message_type="progress",
+                        timestamp=int(datetime.utcnow().timestamp() * 1000),
+                        content={"type": "sequences_generated", "status": "completed", "count": node_data.get("sequence_count", 0)}
+                    )
+                elif "execute_sequences" in node_name:
+                    yield StreamMessage(
+                        message_id=str(uuid.uuid4()),
+                        sequence_id="main",
+                        message_type="progress",
+                        timestamp=int(datetime.utcnow().timestamp() * 1000),
+                        content={"type": "parallel_execution", "status": "completed", "results": node_data.get("successful_executions", 0)}
+                    )
+                elif "synthesize_results" in node_name:
+                    yield StreamMessage(
+                        message_id=str(uuid.uuid4()),
+                        sequence_id="main",
+                        message_type="progress",
+                        timestamp=int(datetime.utcnow().timestamp() * 1000),
+                        content={"type": "synthesis", "status": "completed"}
+                    )
+                elif "evaluate_quality" in node_name:
+                    yield StreamMessage(
+                        message_id=str(uuid.uuid4()),
+                        sequence_id="main",
+                        message_type="progress",
+                        timestamp=int(datetime.utcnow().timestamp() * 1000),
+                        content={"type": "quality_evaluation", "status": "completed"}
+                    )
+
+                # Yield the raw event as well
                 yield StreamMessage(
                     message_id=str(uuid.uuid4()),
                     sequence_id="main",
