@@ -348,6 +348,7 @@ Recommendations:
 
 [bold]Optimization:[/bold]
   optimize <query>          Test all orchestration strategies and compare performance
+  comprehensive-test        Run comprehensive testing across multiple query types
   train <episodes>          Collect training episodes for GRPO
   stats                     Show session statistics
   insights                  Display orchestration insights
@@ -359,6 +360,8 @@ Recommendations:
 [bold]Examples:[/bold]
   research "quantum computing applications in healthcare"
   research --stream "AI ethics and governance frameworks"
+  optimize "market analysis of renewable energy trends"
+  comprehensive-test        Test all query types automatically
   train 100                 Collect 100 training episodes
 
 [bold]Options:[/bold]

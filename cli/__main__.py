@@ -193,12 +193,18 @@ class ResearchCLIApp:
         if results:
             analysis = optimizer.analyze_performance()
 
-            self.cli.console.print("\n[bold green]📊 Optimization Analysis[/bold green]")
+            self.cli.console.print("\n[bold green]📊 Enhanced Optimization Analysis[/bold green]")
             self.cli.console.print(f"Total experiments: {analysis['overall_stats']['total_experiments']}")
             self.cli.console.print(f"Average quality score: {analysis['overall_stats']['average_quality_score']:.3f}")
             self.cli.console.print(f"Average completion time: {analysis['overall_stats']['average_completion_time']:.2f}s")
 
-            self.cli.console.print("\n[bold yellow]🏆 Strategy Rankings[/bold yellow]")
+            # Display confidence intervals if available
+            if 'quality_score_confidence_interval' in analysis['overall_stats']:
+                ci = analysis['overall_stats']['quality_score_confidence_interval']
+                margin = analysis['overall_stats'].get('quality_score_margin_of_error', 0)
+                self.cli.console.print(f"Quality Score 95% CI: [{ci[0]:.3f}, {ci[1]:.3f}] (±{margin:.3f})")
+
+            self.cli.console.print("\n[bold yellow]🏆 Strategy Rankings (with Confidence Intervals)[/bold yellow]")
             strategy_comparison = analysis['strategy_comparison']
             sorted_strategies = sorted(
                 strategy_comparison.items(),
@@ -207,17 +213,119 @@ class ResearchCLIApp:
             )
 
             for i, (strategy_name, metrics) in enumerate(sorted_strategies, 1):
-                self.cli.console.print(f"{i}. {strategy_name}: Quality={metrics['avg_quality_score']:.3f}, Time={metrics['avg_completion_time']:.2f}s")
+                ci = metrics.get('quality_confidence_interval', (0, 0))
+                consistency = metrics.get('quality_consistency', float('inf'))
+                consistency_str = f", Consistency={consistency:.3f}" if consistency != float('inf') else ""
 
-            self.cli.console.print("\n[bold blue]🎯 Recommendations[/bold blue]")
+                self.cli.console.print(
+                    f"{i}. {strategy_name}: Quality={metrics['avg_quality_score']:.3f} "
+                    f"[95% CI: {ci[0]:.3f}-{ci[1]:.3f}], "
+                    f"Time={metrics['avg_completion_time']:.1f}s{consistency_str}"
+                )
+
+            # Display cost-benefit analysis if available
+            if 'cost_benefit_analysis' in analysis and analysis['cost_benefit_analysis']:
+                self.cli.console.print("\n[bold cyan]💰 Cost-Benefit Analysis[/bold cyan]")
+
+                cost_benefit = analysis['cost_benefit_analysis']
+                for strategy, metrics in cost_benefit.items():
+                    self.cli.console.print(
+                        f"• {strategy}: Quality/$={metrics['quality_per_dollar']:.4f}, "
+                        f"Cost/Quality={metrics['cost_per_quality_unit']:.4f}, "
+                        f"Rank Q={metrics.get('quality_efficiency_rank', 'N/A')}, "
+                        f"Rank C={metrics.get('cost_efficiency_rank', 'N/A')}"
+                    )
+
+            # Display significance tests if available
+            if 'significance_tests' in analysis and analysis['significance_tests']:
+                significant_tests = [
+                    name for name, result in analysis['significance_tests'].items()
+                    if result.get('significant', False)
+                ]
+                if significant_tests:
+                    self.cli.console.print(f"\n[bold magenta]📈 Statistically Significant Differences[/bold magenta]")
+                    for test in significant_tests[:5]:  # Show top 5
+                        self.cli.console.print(f"• {test}")
+
+            self.cli.console.print("\n[bold blue]🎯 Enhanced Recommendations[/bold blue]")
             for rec in analysis['recommendations']:
                 self.cli.console.print(f"• {rec}")
 
             # Export results
-            optimizer.export_results(f"optimization_results_{int(time.time())}.json")
+            timestamp = int(time.time())
+            optimizer.export_results(f"optimization_results_{timestamp}.json")
+            self.cli.console.print(f"\n[green]✅ Results exported to optimization_results_{timestamp}.json[/green]")
 
         else:
             self.cli.console.print("[red]No successful experiments to analyze[/red]")
+
+    async def run_comprehensive_testing(self):
+        """Run comprehensive testing across different query types."""
+        if not self.is_initialized:
+            await self.initialize()
+
+        # Import optimization framework
+        from .orchestration.orchestration_optimizer import OrchestrationOptimizer, QueryType
+
+        # Create optimizer
+        optimizer = OrchestrationOptimizer()
+
+        # Get comprehensive test queries
+        test_queries = optimizer.get_test_queries_library()
+
+        self.cli.console.print("\n[bold blue]🚀 Comprehensive Orchestration Testing[/bold blue]")
+        self.cli.console.print(f"Testing {len(test_queries)} query types with {sum(len(queries) for queries in test_queries.values())} total queries")
+
+        try:
+            # Run comprehensive test (limit to 2 queries per type for demo)
+            results = await optimizer.run_comprehensive_test(test_queries, self.orchestrator, max_experiments_per_query=2)
+
+            self.cli.console.print("\n[bold green]📊 Comprehensive Test Results[/bold green]")
+            self.cli.console.print(f"Total experiments: {results['total_experiments']}")
+            self.cli.console.print(f"Query types tested: {', '.join(results['query_types_tested'])}")
+            self.cli.console.print(f"Strategies tested: {results['strategies_tested']}")
+
+            # Display cache statistics
+            if 'cache_stats' in results:
+                cache_stats = results['cache_stats']
+                self.cli.console.print(f"\n[bold cyan]💾 Cache Performance[/bold cyan]")
+                self.cli.console.print(f"Cache size: {cache_stats['cache_size']}")
+                self.cli.console.print(f"Cache hit rate: {cache_stats['hit_rate']:.1%} ({cache_stats['cache_hits']}/{cache_stats['total_requests']})")
+
+            # Display performance summary
+            if 'performance_summary' in results:
+                perf_summary = results['performance_summary']
+                self.cli.console.print(f"\n[bold magenta]⚡ Performance Summary[/bold magenta]")
+                self.cli.console.print(f"Average quality score: {perf_summary['average_quality']:.3f}")
+                self.cli.console.print(f"Average completion time: {perf_summary['average_time']:.2f}s")
+                self.cli.console.print(f"Average cost: ${perf_summary['average_cost']:.4f}")
+                self.cli.console.print(f"Overall success rate: {perf_summary['success_rate']:.1%}")
+
+            # Display analysis if available
+            if 'comprehensive_analysis' in results:
+                analysis = results['comprehensive_analysis']
+                self.cli.console.print(f"\n[bold yellow]📈 Detailed Analysis[/bold yellow]")
+                self.cli.console.print(f"Average quality score: {analysis['overall_stats']['average_quality_score']:.3f}")
+                self.cli.console.print(f"Average completion time: {analysis['overall_stats']['average_completion_time']:.2f}s")
+
+                # Show recommendations
+                if 'recommendations' in analysis:
+                    self.cli.console.print("\n[bold blue]🎯 Key Recommendations[/bold blue]")
+                    for rec in analysis['recommendations'][:5]:  # Show top 5
+                        self.cli.console.print(f"• {rec}")
+
+            # Export comprehensive results
+            timestamp = int(time.time())
+            optimizer.export_results(f"comprehensive_test_results_{timestamp}.json")
+            self.cli.console.print(f"\n[green]✅ Comprehensive results exported to comprehensive_test_results_{timestamp}.json[/green]")
+
+        except Exception as e:
+            self.cli.console.print(f"[red]Comprehensive testing failed: {e}[/red]")
+            # Log error if logger available
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Comprehensive testing error: {e}")
+            else:
+                print(f"Error: {e}")
 
     def parse_args(self, args: list) -> tuple:
         """Parse command line arguments.
@@ -302,6 +410,10 @@ async def main():
                     sys.exit(1)
                 query = " ".join(args)
                 await app.run_optimization_experiment(query)
+
+            elif command == "comprehensive-test":
+                # Run comprehensive testing across different query types
+                await app.run_comprehensive_testing()
 
             elif command == "help":
                 app.cli.display_help()

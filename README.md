@@ -149,15 +149,20 @@ python -m cli research "blockchain applications in supply chain management"
 # Test all orchestration strategies and compare performance
 python -m cli optimize "market analysis of renewable energy trends"
 
+# Run comprehensive testing across all query types (40 queries, 4 types)
+python -m cli comprehensive-test
+
 # Analyze which strategy works best for your type of query
 python -m cli optimize "technical analysis of machine learning algorithms"
 ```
 
 **Features:**
 - **Systematic A/B Testing**: Tests all 6 orchestration strategies automatically
-- **Statistical Analysis**: Confidence intervals and significance testing
+- **Comprehensive Testing**: 40 test queries across 4 domains (academic, business, technical, multi-domain)
+- **Statistical Analysis**: Confidence intervals, significance testing, and cost-benefit analysis
 - **Strategy Recommendations**: Identifies optimal patterns for different query types
-- **Performance Metrics**: Quality scores, completion times, cost efficiency
+- **Performance Metrics**: Quality scores, completion times, cost efficiency, cache performance
+- **Caching System**: Intelligent caching of research results for improved performance
 - **Data Export**: Saves results to JSON for further analysis
 
 #### **Training & Learning**

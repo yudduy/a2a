@@ -1,0 +1,100 @@
+{
+  "experiments": [
+    {
+      "experiment_id": "exp_1758864327_theory_first",
+      "query": "market analysis of renewable energy trends",
+      "query_type": "academic_theoretical",
+      "strategy": "theory_first",
+      "metrics": {
+        "completion_time": 224.0767171382904,
+        "total_tokens": 0,
+        "total_cost": 0.0,
+        "quality_score": 0.08200000000000002,
+        "success_rate": 1.0,
+        "synthesis_length": 8324,
+        "papers_found": 0
+      },
+      "timestamp": "2025-09-26T05:25:27.870193"
+    },
+    {
+      "experiment_id": "exp_1758864466_market_first",
+      "query": "market analysis of renewable energy trends",
+      "query_type": "academic_theoretical",
+      "strategy": "market_first",
+      "metrics": {
+        "completion_time": 138.41002917289734,
+        "total_tokens": 0,
+        "total_cost": 0.0,
+        "quality_score": 0.08200000000000002,
+        "success_rate": 1.0,
+        "synthesis_length": 7309,
+        "papers_found": 0
+      },
+      "timestamp": "2025-09-26T05:27:46.284169"
+    },
+    {
+      "experiment_id": "exp_1758864622_technical_first",
+      "query": "market analysis of renewable energy trends",
+      "query_type": "academic_theoretical",
+      "strategy": "technical_first",
+      "metrics": {
+        "completion_time": 156.53861594200134,
+        "total_tokens": 0,
+        "total_cost": 0.0,
+        "quality_score": 0.08200000000000002,
+        "success_rate": 1.0,
+        "synthesis_length": 10797,
+        "papers_found": 0
+      },
+      "timestamp": "2025-09-26T05:30:22.826791"
+    },
+    {
+      "experiment_id": "exp_1758864808_parallel_all",
+      "query": "market analysis of renewable energy trends",
+      "query_type": "academic_theoretical",
+      "strategy": "parallel_all",
+      "metrics": {
+        "completion_time": 185.22058987617493,
+        "total_tokens": 0,
+        "total_cost": 0.0,
+        "quality_score": 0.08200000000000002,
+        "success_rate": 1.0,
+        "synthesis_length": 9087,
+        "papers_found": 0
+      },
+      "timestamp": "2025-09-26T05:33:28.051183"
+    },
+    {
+      "experiment_id": "exp_1758864953_adaptive",
+      "query": "market analysis of renewable energy trends",
+      "query_type": "academic_theoretical",
+      "strategy": "adaptive",
+      "metrics": {
+        "completion_time": 145.9178819656372,
+        "total_tokens": 0,
+        "total_cost": 0.0,
+        "quality_score": 0.08200000000000002,
+        "success_rate": 1.0,
+        "synthesis_length": 7191,
+        "papers_found": 0
+      },
+      "timestamp": "2025-09-26T05:35:53.973234"
+    },
+    {
+      "experiment_id": "exp_1758865100_sequential_single",
+      "query": "market analysis of renewable energy trends",
+      "query_type": "academic_theoretical",
+      "strategy": "sequential_single",
+      "metrics": {
+        "completion_time": 146.98403692245483,
+        "total_tokens": 0,
+        "total_cost": 0.0,
+        "quality_score": 0.08200000000000002,
+        "success_rate": 1.0,
+        "synthesis_length": 8887,
+        "papers_found": 0
+      },
+      "timestamp": "2025-09-26T05:38:20.961495"
+    }
+  ]
+}
