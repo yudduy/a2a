@@ -441,11 +441,11 @@ class Configuration(BaseModel):
     
     # Agent Registry Configuration
     project_agents_dir: str = Field(
-        default=".open_deep_research/agents",
+        default="agents",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": ".open_deep_research/agents",
+                "default": "agents",
                 "description": "Directory path for project-specific agent definitions (relative to project root)"
             }
         }
@@ -766,7 +766,7 @@ class Configuration(BaseModel):
     def validate_project_agents_dir(cls, v):
         """Validate project agents directory path."""
         if not v or not isinstance(v, str):
-            return ".open_deep_research/agents"
+            return "agents"
         return v.strip()
     
     @validator('user_agents_dir')

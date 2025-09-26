@@ -144,6 +144,22 @@ python -m cli research --stream "AI ethics and governance frameworks"
 python -m cli research "blockchain applications in supply chain management"
 ```
 
+#### **Orchestration Optimization**
+```bash
+# Test all orchestration strategies and compare performance
+python -m cli optimize "market analysis of renewable energy trends"
+
+# Analyze which strategy works best for your type of query
+python -m cli optimize "technical analysis of machine learning algorithms"
+```
+
+**Features:**
+- **Systematic A/B Testing**: Tests all 6 orchestration strategies automatically
+- **Statistical Analysis**: Confidence intervals and significance testing
+- **Strategy Recommendations**: Identifies optimal patterns for different query types
+- **Performance Metrics**: Quality scores, completion times, cost efficiency
+- **Data Export**: Saves results to JSON for further analysis
+
 #### **Training & Learning**
 ```bash
 # Collect 100 training episodes for GRPO learning
@@ -712,6 +728,40 @@ Our system produces comprehensive research outputs as demonstrated in `tests/exp
 
 > **Note**: These are development targets, not verified benchmarks. Full Deep Research Bench evaluation would require $20-$100 in API costs for the complete 100-example dataset.
 
+#### **🚀 Orchestration Optimization Framework**
+
+**Current Issue**: We run the same hardcoded sequences regardless of query type, missing the opportunity to find truly optimal orchestration patterns.
+
+**Goal**: Systematically test multiple orchestration strategies to identify which patterns work best for different types of research tasks.
+
+**Proposed Implementation**:
+
+1. **Multiple Strategy Testing**:
+   - **Theory-First**: Academic → Technical → Market → Synthesis
+   - **Market-First**: Market → Academic → Technical → Synthesis
+   - **Technical-First**: Technical → Academic → Market → Synthesis
+   - **Parallel-All**: All agents simultaneously
+   - **Adaptive**: LLM selects optimal pattern based on query analysis
+
+2. **Performance Metrics**:
+   - **Completion Time**: Total execution duration
+   - **Token Efficiency**: Quality per token used
+   - **Cost Effectiveness**: Quality per dollar spent
+   - **Consistency**: Variance across multiple runs
+   - **Task-Specific Quality**: Domain-appropriate metrics
+
+3. **A/B Testing Framework**:
+   - Random assignment of queries to different strategies
+   - Statistical comparison of performance metrics
+   - Confidence intervals for strategy superiority
+   - Automated recommendation of optimal patterns
+
+4. **Query Classification**:
+   - Academic/Theoretical queries → Theory-First
+   - Business/Commercial queries → Market-First
+   - Technical/Implementation queries → Technical-First
+   - Multi-domain queries → Parallel-All
+
 #### Deep Research Bench Integration
 The system includes infrastructure for Deep Research Bench evaluation:
 
@@ -833,4 +883,4 @@ Security is a top priority. Please review our [Security Policy](SECURITY.md) for
 
 ---
 
-Built by the LangChain team and open source contributors
+Built by Duy Nguyen on top of shoulder of giants (LangChain)

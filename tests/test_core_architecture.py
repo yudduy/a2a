@@ -89,7 +89,7 @@ class TestAgentRegistryConfiguration:
     
     def test_project_agents_dir_field(self):
         """Test project_agents_dir configuration field."""
-        assert self.config.project_agents_dir == ".open_deep_research/agents"
+        assert self.config.project_agents_dir == "agents"
         
         config = Configuration(project_agents_dir="custom/agents/path")
         assert config.project_agents_dir == "custom/agents/path"
@@ -329,7 +329,7 @@ class TestAgentRegistryLoading:
     def setup_method(self):
         """Set up test directories and files."""
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.project_agents_dir = self.temp_dir / ".open_deep_research" / "agents"
+        self.project_agents_dir = self.temp_dir / "agents"
         self.project_agents_dir.mkdir(parents=True, exist_ok=True)
         
         # Create test agent file

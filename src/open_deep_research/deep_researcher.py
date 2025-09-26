@@ -1050,7 +1050,7 @@ async def sequence_research_supervisor(state: AgentState, config: RunnableConfig
             return Command(
                 goto="final_report_generation",
                 update={
-                    "notes": ["Research failed: No agents available in registry. Please ensure agent definitions exist in .open_deep_research/agents/ directory."],
+                    "notes": ["Research failed: No agents available in registry. Please ensure agent definitions exist in agents/ directory."],
                     "research_brief": research_topic,
                     "final_report": "Research could not be completed: No specialized agents found in agent registry."
                 }

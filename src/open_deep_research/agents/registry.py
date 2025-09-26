@@ -26,7 +26,7 @@ class AgentRegistry:
         self.project_root = Path(project_root) if project_root else Path.cwd()
         
         # Agent directory paths (Claude Code pattern)
-        self.project_agents_dir = self.project_root / ".open_deep_research/agents"
+        self.project_agents_dir = self.project_root / "agents"
         self.user_agents_dir = Path.home() / ".open_deep_research/agents"
         
         # Agent storage
@@ -72,7 +72,7 @@ class AgentRegistry:
         # Log final state
         total_agents = len(self._agents)
         if total_agents == 0:
-            logger.warning("No agents loaded. Consider creating agent definitions in .open_deep_research/agents/")
+            logger.warning("No agents loaded. Consider creating agent definitions in agents/")
         else:
             logger.info(f"Agent registry initialized with {total_agents} agents")
     

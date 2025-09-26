@@ -346,7 +346,8 @@ Recommendations:
   research --stream <query> Show streaming output
   interactive               Start interactive mode
 
-[bold]Training:[/bold]
+[bold]Optimization:[/bold]
+  optimize <query>          Test all orchestration strategies and compare performance
   train <episodes>          Collect training episodes for GRPO
   stats                     Show session statistics
   insights                  Display orchestration insights

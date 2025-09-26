@@ -61,6 +61,10 @@ class OrchestrationEngine:
         self._current_papers: List[Dict[str, Any]] = []
         self._current_trace_id: Optional[str] = None
 
+        # Orchestration optimization
+        self.optimizer: Optional[Any] = None
+        self.current_strategy: Optional[str] = None
+
     async def initialize(self):
         """Initialize orchestration engine components."""
         self.a2a_client = A2AClient()
@@ -72,6 +76,122 @@ class OrchestrationEngine:
         if self.a2a_client:
             await self.a2a_client.close()
         self.logger.info("Orchestration engine closed")
+
+    def set_optimizer(self, optimizer: Any):
+        """Set orchestration optimizer."""
+        self.optimizer = optimizer
+
+    def get_available_strategies(self) -> List[str]:
+        """Get list of available orchestration strategies."""
+        return [
+            "theory_first",
+            "market_first",
+            "technical_first",
+            "parallel_all",
+            "adaptive",
+            "sequential_single"
+        ]
+
+    async def execute_research_with_strategy(
+        self,
+        query: str,
+        strategy: str
+    ) -> ResearchResult:
+        """
+        Execute research with a specific orchestration strategy.
+
+        Args:
+            query: Research query
+            strategy: Orchestration strategy to use
+
+        Returns:
+            ResearchResult
+        """
+        self.current_strategy = strategy
+
+        # Modify graph execution based on strategy
+        if strategy == "parallel_all":
+            return await self._execute_parallel_all(query)
+        elif strategy == "sequential_single":
+            return await self._execute_sequential_single(query)
+        else:
+            return await self.execute_research(query)
+
+    async def _execute_parallel_all(self, query: str) -> ResearchResult:
+        """Execute all agents in parallel."""
+        self.logger.info(f"Executing parallel_all strategy for: {query}")
+
+        # Get all available agents
+        available_agents = list(self.agent_registry.keys())
+
+        # Create tasks for all agents
+        tasks = []
+        for agent_name in available_agents:
+            if agent_name in self.agent_registry:
+                agent = self.agent_registry[agent_name]
+                task = Task(
+                    id=f"parallel_{agent_name}_{uuid.uuid4().hex}",
+                    description=f"Research: {query} (focus: {agent_name.replace('_', ' ').title()} analysis)",
+                    context_summary=f"Parallel execution: {agent_name}"
+                )
+                tasks.append(agent.execute_task(task))
+
+        # Execute all tasks concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        all_insights = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                self.logger.error(f"Agent {i} failed: {result}")
+                continue
+
+            if hasattr(result, 'artifacts'):
+                for artifact in result.artifacts:
+                    if isinstance(artifact, dict) and "content" in artifact:
+                        all_insights.append(artifact["content"])
+                    elif isinstance(artifact, str):
+                        all_insights.append(artifact)
+
+            if hasattr(result, 'summary') and result.summary:
+                all_insights.append(result.summary)
+
+        # Create synthesis
+        synthesis = await self._create_synthesis([], all_insights, query)
+
+        return ResearchResult(
+            synthesis=synthesis,
+            papers=[],
+            trace_id=f"parallel_all_{uuid.uuid4().hex}"
+        )
+
+    async def _execute_sequential_single(self, query: str) -> ResearchResult:
+        """Execute only the synthesis agent."""
+        self.logger.info(f"Executing sequential_single strategy for: {query}")
+
+        if "synthesis_agent" in self.agent_registry:
+            agent = self.agent_registry["synthesis_agent"]
+            task = Task(
+                id=f"single_synthesis_{uuid.uuid4().hex}",
+                description=f"Comprehensive research synthesis: {query}",
+                context_summary="Single agent synthesis"
+            )
+
+            result = await agent.execute_task(task)
+
+            synthesis = result.summary if hasattr(result, 'summary') else str(result)
+
+            return ResearchResult(
+                synthesis=synthesis,
+                papers=[],
+                trace_id=f"single_{uuid.uuid4().hex}"
+            )
+
+        return ResearchResult(
+            synthesis=f"Single agent synthesis for: {query}",
+            papers=[],
+            trace_id=f"single_{uuid.uuid4().hex}"
+        )
 
     def _build_research_graph(self) -> StateGraph:
         """Build the research workflow graph.

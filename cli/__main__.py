@@ -9,6 +9,7 @@ and Langfuse integration.
 import asyncio
 import logging
 import sys
+import time
 from typing import Optional
 
 try:
@@ -144,6 +145,80 @@ class ResearchCLIApp:
         self.cli.display_config()
         self.cli.display_agents()
 
+    async def run_optimization_experiment(self, query: str):
+        """Run orchestration optimization experiment.
+
+        Args:
+            query: Research query to test
+        """
+        if not self.is_initialized:
+            await self.initialize()
+
+        # Import optimization framework
+        from .orchestration.orchestration_optimizer import OrchestrationOptimizer, OrchestrationStrategy
+
+        # Create optimizer
+        optimizer = OrchestrationOptimizer()
+        self.orchestrator.set_optimizer(optimizer)
+
+        self.cli.console.print(f"\n[bold blue]🚀 Orchestration Optimization Experiment[/bold blue]")
+        self.cli.console.print(f"[blue]Query: {query}[/blue]")
+
+        # Test all available strategies
+        strategies = [
+            OrchestrationStrategy.THEORY_FIRST,
+            OrchestrationStrategy.MARKET_FIRST,
+            OrchestrationStrategy.TECHNICAL_FIRST,
+            OrchestrationStrategy.PARALLEL_ALL,
+            OrchestrationStrategy.ADAPTIVE,
+            OrchestrationStrategy.SEQUENTIAL_SINGLE
+        ]
+
+        results = []
+
+        for strategy in strategies:
+            self.cli.console.print(f"\n[green]🧪 Testing strategy: {strategy.value}[/green]")
+
+            try:
+                # Run experiment
+                experiment = await optimizer.run_experiment(query, self.orchestrator, strategy)
+                results.append(experiment)
+
+                self.cli.console.print(f"✅ Completed: {len(experiment.result.synthesis or '')} chars, Quality: {experiment.metrics.quality_score:.3f}")
+
+            except Exception as e:
+                self.cli.console.print(f"❌ Failed: {e}")
+
+        # Analyze results
+        if results:
+            analysis = optimizer.analyze_performance()
+
+            self.cli.console.print("\n[bold green]📊 Optimization Analysis[/bold green]")
+            self.cli.console.print(f"Total experiments: {analysis['overall_stats']['total_experiments']}")
+            self.cli.console.print(f"Average quality score: {analysis['overall_stats']['average_quality_score']:.3f}")
+            self.cli.console.print(f"Average completion time: {analysis['overall_stats']['average_completion_time']:.2f}s")
+
+            self.cli.console.print("\n[bold yellow]🏆 Strategy Rankings[/bold yellow]")
+            strategy_comparison = analysis['strategy_comparison']
+            sorted_strategies = sorted(
+                strategy_comparison.items(),
+                key=lambda x: x[1]['avg_quality_score'],
+                reverse=True
+            )
+
+            for i, (strategy_name, metrics) in enumerate(sorted_strategies, 1):
+                self.cli.console.print(f"{i}. {strategy_name}: Quality={metrics['avg_quality_score']:.3f}, Time={metrics['avg_completion_time']:.2f}s")
+
+            self.cli.console.print("\n[bold blue]🎯 Recommendations[/bold blue]")
+            for rec in analysis['recommendations']:
+                self.cli.console.print(f"• {rec}")
+
+            # Export results
+            optimizer.export_results(f"optimization_results_{int(time.time())}.json")
+
+        else:
+            self.cli.console.print("[red]No successful experiments to analyze[/red]")
+
     def parse_args(self, args: list) -> tuple:
         """Parse command line arguments.
 
@@ -220,6 +295,13 @@ async def main():
 
             elif command == "interactive":
                 await app.run_interactive()
+
+            elif command == "optimize":
+                if not args:
+                    app.cli.console.print("[red]Query required for optimization[/red]")
+                    sys.exit(1)
+                query = " ".join(args)
+                await app.run_optimization_experiment(query)
 
             elif command == "help":
                 app.cli.display_help()

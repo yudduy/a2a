@@ -61,7 +61,7 @@ class TestSequentialSupervisorEndToEnd:
         """Set up test fixtures and temporary directories."""
         # Create temporary directory for test agents
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.agents_dir = self.temp_dir / ".open_deep_research" / "agents"
+        self.agents_dir = self.temp_dir / "agents"
         self.agents_dir.mkdir(parents=True, exist_ok=True)
         
         # Create sample agent files
