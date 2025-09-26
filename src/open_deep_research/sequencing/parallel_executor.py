@@ -5,14 +5,24 @@ simultaneously with real-time streaming, thread safety, and proper error handlin
 """
 
 import asyncio
+import gc
 import logging
 import time
-import gc
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 from uuid import uuid4
 
 try:
@@ -25,11 +35,10 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from .models import (
-    SequenceComparison,
-    SequenceResult,
-    SequencePattern,
     DynamicSequencePattern,
-    ToolProductivityMetrics
+    SequenceComparison,
+    SequencePattern,
+    SequenceResult,
 )
 from .sequence_engine import SequenceOptimizationEngine
 
@@ -305,7 +314,7 @@ class ResourceMonitor:
     async def _force_gc_if_needed(self) -> None:
         """Force garbage collection if memory pressure is high."""
         if self.get_memory_pressure() > 80.0:
-            logger.info(f"High memory pressure detected, forcing garbage collection")
+            logger.info("High memory pressure detected, forcing garbage collection")
             
             # Run GC in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
@@ -431,7 +440,7 @@ class ParallelSequenceExecutor:
                 # Legacy strategy - need to create pattern from it
                 sequence_strategies.append(seq)
                 # We'll create the pattern later when we have SEQUENCE_PATTERNS or create a default
-            elif isinstance(seq, (SequencePattern, DynamicSequencePattern)):
+            elif isinstance(seq, SequencePattern | DynamicSequencePattern):
                 sequence_patterns.append(seq)
                 # Extract strategy if available
                 if hasattr(seq, 'strategy'):
@@ -480,7 +489,7 @@ class ParallelSequenceExecutor:
         progress_trackers = {}
         for i, seq in enumerate(sequences):
             # Determine total agents for this sequence
-            if isinstance(seq, (SequencePattern, DynamicSequencePattern)):
+            if isinstance(seq, SequencePattern | DynamicSequencePattern):
                 total_agents = len(seq.agent_order)
                 pattern = seq
                 strategy = getattr(seq, 'strategy', None)
@@ -555,7 +564,7 @@ class ParallelSequenceExecutor:
                     
                     # Update metrics aggregator with final comparison
                     if self.enable_real_time_metrics and self.metrics_aggregator:
-                        parallel_metrics = self.metrics_aggregator.aggregate_parallel_metrics(execution_id)
+                        self.metrics_aggregator.aggregate_parallel_metrics(execution_id)
                         logger.info(f"Final parallel metrics aggregated for execution {execution_id}")
                     
                 except Exception as e:
@@ -638,7 +647,6 @@ class ParallelSequenceExecutor:
         stream_callback: Optional[Callable[[StreamMessage], None]] = None
     ) -> Optional[SequenceResult]:
         """Execute a single sequence with progress tracking and error handling."""
-        
         async with self.semaphore:  # Limit concurrency
             engine = None
             retry_count = 0
@@ -682,7 +690,7 @@ class ParallelSequenceExecutor:
                     )
                     
                     # Get the pattern to execute
-                    if isinstance(sequence, (SequencePattern, DynamicSequencePattern)):
+                    if isinstance(sequence, SequencePattern | DynamicSequencePattern):
                         pattern = sequence
                     else:  # String strategy - need to handle this case
                         # Try to create a pattern from strategy or use a fallback
@@ -773,11 +781,8 @@ class ParallelSequenceExecutor:
         execution_id: Optional[str] = None
     ) -> SequenceResult:
         """Execute sequence with detailed progress updates."""
-        
         # Track execution start
-        execution_start = datetime.utcnow()
-        agent_results = []
-        previous_insights = []
+        datetime.utcnow()
         
         try:
             # Execute sequence using the engine (which handles metrics integration)

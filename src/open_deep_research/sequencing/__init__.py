@@ -35,48 +35,49 @@ Usage:
     results = await engine.execute_sequences_parallel(sequences, "AI safety research")
 """
 
+from .metrics import MetricsCalculator
 from .models import (
-    AgentType,
+    SEQUENCE_PATTERNS,
     AgentExecutionResult,
+    AgentType,
+    DynamicSequencePattern,
+    InsightTransition,
     QueryType,
     ResearchDomain,
     ScopeBreadth,
     SequenceAnalysis,
     SequencePattern,
-    DynamicSequencePattern,
     SequenceResult,
     ToolProductivityMetrics,
-    InsightTransition,
-    SEQUENCE_PATTERNS
+)
+from .parallel_executor import (
+    ParallelExecutionProgress,
+    ParallelExecutionResult,
+    ParallelSequenceExecutor,
+    ResourceMonitor,
+    StreamMessage,
+    parallel_executor_context,
 )
 from .research_director import SupervisorResearchDirector
 from .sequence_engine import SequenceOptimizationEngine
 from .sequence_selector import SequenceAnalyzer
-from .metrics import MetricsCalculator
 from .specialized_agents import (
     AcademicAgent,
     IndustryAgent,
-    TechnicalTrendsAgent,
+    ResearchContext,
     SpecializedAgent,
-    ResearchContext
-)
-from .parallel_executor import (
-    ParallelSequenceExecutor,
-    ParallelExecutionResult,
-    ParallelExecutionProgress,
-    StreamMessage,
-    ResourceMonitor,
-    parallel_executor_context
+    TechnicalTrendsAgent,
 )
 from .stream_multiplexer import (
-    StreamMultiplexer,
-    StreamSubscription,
-    WebSocketConnection,
     ConnectionState,
     DeliveryGuarantee,
     MessageBuffer,
-    create_stream_multiplexer
+    StreamMultiplexer,
+    StreamSubscription,
+    WebSocketConnection,
+    create_stream_multiplexer,
 )
+
 # Legacy langgraph wrapper removed - now using LLM-generated sequences
 
 __all__ = [

@@ -6,16 +6,16 @@ from supervisor, eliminating code duplication while preserving all functionality
 """
 
 import json
-import re
 import logging
+import re
 import time
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple, Set, Union
 from enum import Enum
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field, ValidationError
 
@@ -302,7 +302,6 @@ class UnifiedSequenceGenerator:
         generation_timestamp: str
     ) -> SequenceGenerationResult:
         """Generate sequences using rule-based approach (synchronous)."""
-        
         # Convert AgentCapability objects to agent names
         available_agents = [agent.name for agent in input_data.available_agents]
         
@@ -469,7 +468,6 @@ class UnifiedSequenceGenerator:
         generation_timestamp: str
     ) -> SequenceGenerationResult:
         """Generate sequences using hybrid approach combining rule-based and LLM methods."""
-        
         try:
             # Step 1: Get topic analysis from rule-based approach
             topic_analysis = self.analyze_topic_characteristics(input_data.research_topic)
@@ -559,7 +557,6 @@ class UnifiedSequenceGenerator:
         generation_timestamp: str
     ) -> SequenceGenerationResult:
         """Generate sequences using hybrid approach (synchronous)."""
-        
         try:
             # Step 1: Get topic analysis from rule-based approach
             topic_analysis = self.analyze_topic_characteristics(input_data.research_topic)
@@ -987,7 +984,6 @@ class UnifiedSequenceGenerator:
         topic_analysis: TopicAnalysis
     ) -> GeneratedSequence:
         """Generate a sequence for a specific strategy."""
-        
         # Generate agent sequence based on strategy
         if strategy == SequenceStrategy.THEORY_FIRST:
             agents = self._create_theory_first_sequence(available_agents, topic_analysis)
@@ -1513,7 +1509,6 @@ REMEMBER: Output ONLY the JSON object starting with { and ending with }. NO OTHE
     
     def _create_llm_user_prompt(self, input_data: SequenceGenerationInput) -> str:
         """Create the user prompt with research context and available agents."""
-        
         # Format available agents with comprehensive descriptions
         agent_descriptions = []
         for agent in input_data.available_agents:
@@ -1586,8 +1581,6 @@ Output your response as valid JSON matching the SequenceGenerationOutput schema.
     
     def _parse_llm_response(self, raw_content: str) -> SequenceGenerationOutput:
         """Parse the raw LLM response into a structured output with enhanced error handling."""
-        import re
-        
         logger.debug(f"Raw LLM response: {raw_content[:500]}...")  # Log first 500 chars
         
         # Clean the content first to handle reasoning model thinking tags
@@ -1746,7 +1739,6 @@ Output your response as valid JSON matching the SequenceGenerationOutput schema.
         is_sync: bool = False
     ) -> SequenceGenerationResult:
         """Generate sequences using LLM with retry mechanism for malformed responses."""
-        
         max_retries = 2  # Allow 2 retries for malformed responses
         last_error = None
         
@@ -1810,7 +1802,7 @@ Output your response as valid JSON matching the SequenceGenerationOutput schema.
                 
                 # For specific parsing errors, add helpful context
                 if "missing required fields" in str(e) or "Schema validation failed" in str(e):
-                    logger.debug(f"LLM response format issue detected. Will retry with clearer instructions.")
+                    logger.debug("LLM response format issue detected. Will retry with clearer instructions.")
                 
                 # If this is not the last attempt, continue to retry
                 if attempt < max_retries:

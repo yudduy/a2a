@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Extract data from LangSmith and save to JSONL file with configurable dataset."""
 
-import os
-import json
 import argparse
-from langsmith import Client
+import json
+import os
+
 from dotenv import load_dotenv
+from langsmith import Client
 
 load_dotenv()
 
 
 def extract_langsmith_data(project_name, model_name, dataset_name, api_key):
     """Extract data from LangSmith and save to JSONL file."""
-    print(f"Extracting data from LangSmith project: {project_name}")
-    print(f"Using dataset: {dataset_name}")
     
     client = Client(api_key=api_key)
     
@@ -53,8 +52,6 @@ def extract_langsmith_data(project_name, model_name, dataset_name, api_key):
         for item in output_jsonl:
             f.write(json.dumps(item, ensure_ascii=False) + '\n')
     
-    print(f"Data written to {output_file_path}")
-    print(f"Total records: {len(output_jsonl)}")
     return output_file_path
 
 

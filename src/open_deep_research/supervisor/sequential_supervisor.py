@@ -7,26 +7,27 @@ sequential multi-agent workflows.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Literal, Union
-from datetime import datetime, timedelta
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Literal, Optional
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_core.runnables import RunnableConfig
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import END, StateGraph
 from langgraph.types import Command
 
+from open_deep_research.agents.completion_detector import (
+    CompletionDetector,
+    DetectionStrategy,
+)
 from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.agents.completion_detector import CompletionDetector, DetectionStrategy
+from open_deep_research.configuration import Configuration
 from open_deep_research.orchestration.report_builder import RunningReportBuilder
 from open_deep_research.state import (
-    SequentialSupervisorState,
-    SequentialAgentState,
     AgentExecutionReport,
-    RunningReport
+    SequentialAgentState,
+    SequentialSupervisorState,
 )
-from open_deep_research.configuration import Configuration
 from open_deep_research.utils import get_all_tools, think_tool
 
 logger = logging.getLogger(__name__)

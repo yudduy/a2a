@@ -1,82 +1,76 @@
-# 🎯 Optimal Tool Orchestration
+# Optimal Tool Orchestration
 
 <img width="1388" height="298" alt="tool_orchestration_diagram" src="https://github.com/user-attachments/assets/12a2371b-8be2-4219-9b48-90503eb43c69" />
 
-An advanced AI system for **optimal tool orchestration and sequence generation** that dynamically selects, sequences, and coordinates specialized agents to solve complex problems. Built on top of Open Deep Research architecture with intelligent parallel execution and LLM-powered sequence optimization.
+An  AI system for **tool orchestration and sequence generation** that dynamically selects, sequences, and coordinates specialized agents to solve complex problems. Built on top of Open Deep Research architecture with intelligent parallel execution and LLM-powered sequence optimization.
 
-**NEW: CLI-First Architecture** with A2A Protocol, LangGraph Orchestration, and GRPO Learning! 🚀
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![GitHub stars](https://img.shields.io/github/stars/langchain-ai/open_deep_research.svg)](https://github.com/langchain-ai/open_deep_research/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/langchain-ai/open_deep_research.svg)](https://github.com/langchain-ai/open_deep_research/issues)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/langchain-ai/open_deep_research/ci.yml?branch=main)](https://github.com/langchain-ai/open_deep-research/actions)
+CLI Architecture with A2A Protocol, LangGraph Orchestration, and GRPO Learning. 
 
 <img width="817" height="666" alt="Screenshot 2025-07-13 at 11 21 12 PM" src="https://github.com/user-attachments/assets/052f2ed3-c664-4a4f-8ec2-074349dcaa3f" />
 
-## 🏗️ Revolutionary Architecture
+## Architecture
 
-### **A2A Protocol Layer** 🔗
+### A2A Protocol Layer
 - **Agent-to-Agent Communication**: Google's standardized protocol for inter-agent messaging
 - **Agent Cards**: Self-describing capability advertisements for agent discovery
 - **Task Delegation**: Structured message passing with context compression
 - **Framework Agnostic**: Works across different agent implementations
 
-### **LangGraph Orchestration** 🧠
+### LangGraph Orchestration
 - **Graph-Based State Management**: Advanced workflow orchestration
 - **Parallel Sequence Execution**: 3 simultaneous research sequences
 - **Conditional Branching**: Dynamic workflow adaptation
 - **Streaming Updates**: Real-time progress tracking
 
-### **Hierarchical Context Management** 🌳
+### Hierarchical Context Management
 - **Intelligent Compression**: Adaptive content compression for different types
 - **Context Trees**: Root (20k tokens) + Branch (80k tokens) architecture
 - **Selective Inheritance**: Relevant context passing between agents
 - **Token Optimization**: Efficient context utilization
 
-### **GRPO Learning** 📈
+### GRPO Learning
 - **Reinforcement Learning**: Continuous improvement from human feedback
 - **Episode Collection**: Training data gathering for optimization
 - **Policy Optimization**: Automated orchestration strategy improvement
 - **Performance Tracking**: Metrics-driven learning
 
-## 🧠 Core Innovation: CLI-First Research Orchestration
+## Core Innovation: CLI-First Research Orchestration
 
-**Optimal Tool Orchestration** represents a breakthrough in AI agent coordination with our new **CLI-first architecture** that provides:
+Optimal Tool Orchestration extends AI agent coordination with a CLI-first architecture that provides:
 
-- **🎯 Dynamic Sequence Generation**: LLM analyzes problems and generates 1-3 optimal agent sequences
-- **🔄 Parallel Execution**: All sequences run simultaneously with real-time streaming
-- **🏆 LLM Judge Evaluation**: Automated comparison and selection of best results
-- **🧪 Specialized Agents**: 4 domain experts (Academic, Technical, Market, Synthesis)
-- **📊 GRPO Learning**: Reinforcement learning from human feedback for continuous improvement
+- Dynamic Sequence Generation: LLM analyzes problems and generates 1-3 optimal agent sequences
+- Parallel Execution: All sequences run simultaneously with real-time streaming
+- LLM Judge Evaluation: Automated comparison and selection of best results
+- Specialized Agents: 4 domain experts (Academic, Technical, Market, Synthesis)
+- GRPO Learning: Reinforcement learning from human feedback for continuous improvement
 
-### Revolutionary Features
+### Key Features
 
-**🔗 A2A Protocol Integration**
+**A2A Protocol Integration**
 - Google's Agent-to-Agent protocol for standardized inter-agent communication
 - Agent Cards for capability discovery and self-documentation
 - Structured task delegation with context compression
 - Framework-agnostic agent ecosystem
 
-**🧠 LangGraph Orchestration Engine**
+**LangGraph Orchestration Engine**
 - Graph-based state management for complex workflows
 - Conditional branching based on research progress
 - Streaming execution with real-time progress tracking
 - Checkpoint and recovery mechanisms
 
-**🌳 Hierarchical Context Management**
+**Hierarchical Context Management**
 - Intelligent compression for different content types (papers, search results, agent outputs)
 - Context trees with root (20k) and branch (80k) token limits
 - Selective context inheritance between agents
 - Token-efficient context utilization
 
-**📈 GRPO Reinforcement Learning**
+**GRPO Reinforcement Learning**
 - Continuous improvement through human feedback
 - Episode collection for training data
 - Automated orchestration strategy optimization
 - Performance metrics and quality scoring
 
-## 🚀 Quickstart Guide
+## Quickstart Guide
 
 ### Prerequisites
 - **Python 3.11+**
@@ -86,7 +80,7 @@ An advanced AI system for **optimal tool orchestration and sequence generation**
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/langchain-ai/open_deep_research.git
+git clone https://github.com/yudduy/a2a.git
 cd open_deep_research
 ```
 
@@ -130,7 +124,7 @@ cp .env.example .env
 - `TAVILY_API_KEY` - Web search functionality
 - `LANGFUSE_PUBLIC_KEY` & `LANGFUSE_SECRET_KEY` - Tracing & monitoring
 
-### 🎯 Basic Usage
+### Basic Usage
 
 #### **Interactive Mode (Recommended)**
 ```bash
@@ -171,39 +165,39 @@ python -m cli --version
 python -m cli --help
 ```
 
-### 📊 CLI Architecture Overview
+### CLI Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Research CLI System                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  🔗 A2A Protocol Layer                                          │
+│  A2A Protocol Layer                                          │
 │  • Agent-to-Agent communication                                │
 │  • Task delegation and result aggregation                      │
 │  • Agent capability discovery                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  🧠 LangGraph Orchestration                                    │
+│  LangGraph Orchestration                                    │
 │  • Graph-based state management                                │
 │  • Parallel sequence execution                                 │
 │  • Conditional workflow routing                                │
 ├─────────────────────────────────────────────────────────────────┤
-│  📊 Langfuse Observability                                     │
+│  Langfuse Observability                                     │
 │  • Execution tracing and monitoring                            │
 │  • GRPO reinforcement learning                                 │
 │  • Performance metrics and analytics                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  🌳 Hierarchical Context Management                            │
+│  Hierarchical Context Management                            │
 │  • Intelligent context compression                             │
 │  • Selective context inheritance                               │
 │  • Token-efficient context trees                               │
 ├─────────────────────────────────────────────────────────────────┤
-│  🤖 Specialized Research Agents                                │
+│  Specialized Research Agents                                │
 │  • Academic research agent                                     │
 │  • Technical analysis agent                                    │
 │  • Market intelligence agent                                   │
 │  • Research synthesis agent                                    │
 ├─────────────────────────────────────────────────────────────────┤
-│  💻 Rich CLI Interface                                         │
+│  Rich CLI Interface                                         │
 │  • Beautiful terminal output                                   │
 │  • Real-time streaming progress                                │
 │  • Interactive research mode                                   │
@@ -211,7 +205,7 @@ python -m cli --help
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 🎯 Detailed Usage Guide
+## Detailed Usage Guide
 
 ### **Interactive CLI Mode**
 
@@ -222,39 +216,39 @@ python -m cli
 ```
 
 **Features:**
-- **🔬 Research Query Input**: Enter research topics naturally
-- **📊 Real-time Progress**: Live tree visualization showing:
+- Research Query Input: Enter research topics naturally
+- Real-time Progress: Live tree visualization showing:
   - Query analysis progress
   - Strategic sequence generation
   - Parallel execution status
   - Synthesis and quality evaluation
-- **🎨 Rich Formatting**: Beautiful terminal output with colors and animations
-- **💬 Interactive Commands**: Command completion and help
+- Rich Formatting: Beautiful terminal output with colors and animations
+- Interactive Commands: Command completion and help
 
 **Example Session:**
 ```bash
-🔬 Interactive Research Mode
+Interactive Research Mode
 Type 'quit' or 'exit' to end session
 
 Research Query (): quantum computing applications in healthcare
 
-🔬 Starting Research: quantum computing applications in healthcare
+Starting Research: quantum computing applications in healthcare
 
-🔬 Research Query: quantum computing applications in healthcare
-├── 📋 Query Analysis
-│   └── ⏳ Pending...
-├── ⚙️ Strategic Sequences
-│   └── ⏳ Pending...
-├── 🚀 Parallel Execution
-│   ├── 🤖 academic_agent: Researching literature...
-│   ├── 🤖 technical_agent: Analyzing implementations...
-│   └── 🤖 market_agent: Market analysis...
-├── 📝 Synthesis
-│   └── ⏳ Pending...
-└── ✅ Quality Evaluation
-    └── ⏳ Pending...
+Research Query: quantum computing applications in healthcare
+├── Query Analysis
+│   └── Pending...
+├── Strategic Sequences
+│   └── Pending...
+├── Parallel Execution
+│   ├── academic_agent: Researching literature...
+│   ├── technical_agent: Analyzing implementations...
+│   └── market_agent: Market analysis...
+├── Synthesis
+│   └── Pending...
+└── Quality Evaluation
+    └── Pending...
 
-✅ Research Complete!
+Research Complete!
 
 ╭─ Research Results: quantum computing applications in healthcare ──╮
 │ ## Comprehensive Research Synthesis                                   │
@@ -299,25 +293,25 @@ python -m cli config
 
 ### **Agent Capabilities**
 
-#### **Academic Research Agent** 📚
-- **Specialization**: Literature reviews, theoretical frameworks, citation analysis
-- **Best For**: Academic research, theoretical analysis, literature synthesis
-- **Output**: Comprehensive academic analysis with citations and theoretical frameworks
+#### Academic Research Agent
+- Specialization: Literature reviews, theoretical frameworks, citation analysis
+- Best For: Academic research, theoretical analysis, literature synthesis
+- Output: Comprehensive academic analysis with citations and theoretical frameworks
 
-#### **Technical Research Agent** 🔧
-- **Specialization**: Implementation details, architecture analysis, technical evaluation
-- **Best For**: Technical feasibility, system architecture, implementation challenges
-- **Output**: Technical specifications, architecture diagrams, feasibility assessments
+#### Technical Research Agent
+- Specialization: Implementation details, architecture analysis, technical evaluation
+- Best For: Technical feasibility, system architecture, implementation challenges
+- Output: Technical specifications, architecture diagrams, feasibility assessments
 
-#### **Market Research Agent** 📈
-- **Specialization**: Market trends, competitive analysis, business intelligence
-- **Best For**: Market opportunity, competitive landscape, commercial viability
-- **Output**: Market analysis, competitive intelligence, business recommendations
+#### Market Research Agent
+- Specialization: Market trends, competitive analysis, business intelligence
+- Best For: Market opportunity, competitive landscape, commercial viability
+- Output: Market analysis, competitive intelligence, business recommendations
 
-#### **Synthesis Agent** 🔄
-- **Specialization**: Information integration, report generation, insight synthesis
-- **Best For**: Combining multiple research perspectives, creating comprehensive reports
-- **Output**: Integrated research reports with cross-domain insights
+#### Synthesis Agent
+- Specialization: Information integration, report generation, insight synthesis
+- Best For: Combining multiple research perspectives, creating comprehensive reports
+- Output: Integrated research reports with cross-domain insights
 
 ### **Performance Optimization**
 
@@ -341,7 +335,7 @@ The system uses hierarchical context management with intelligent compression:
 - **Human Feedback**: Learn from research quality and user preferences
 - **Automated Adaptation**: System gets better with each research session
 
-## ⚙️ Configuration & Environment
+## Configuration & Environment
 
 ### **Environment Variables**
 
@@ -412,9 +406,9 @@ uvx --refresh --from "langgraph-cli[inmem]" --with-editable . --python 3.11 lang
 ```
 
 **Access Points:**
-- 🚀 **API**: http://127.0.0.1:2024
-- 🎨 **Studio UI**: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
-- 📚 **API Docs**: http://127.0.0.1:2024/docs
+-  **API**: http://127.0.0.1:2024
+-  **Studio UI**: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
+-  **API Docs**: http://127.0.0.1:2024/docs
 
 **LangGraph Studio Features:**
 - **Visual Workflow Designer**: Drag-and-drop workflow creation
@@ -422,7 +416,7 @@ uvx --refresh --from "langgraph-cli[inmem]" --with-editable . --python 3.11 lang
 - **Interactive Testing**: Test workflows with different inputs
 - **Performance Monitoring**: Built-in metrics and profiling
 
-## 🔧 Troubleshooting & Debugging
+## Troubleshooting & Debugging
 
 ### **Common Issues**
 
@@ -481,7 +475,7 @@ python -m cli config
 python -m cli stats
 ```
 
-## 📚 Real-World Examples
+## Real-World Examples
 
 ### **Example 1: Healthcare Innovation Research**
 ```bash
@@ -517,7 +511,7 @@ python -m cli stats
 ```
 **Output**: Training statistics showing system improvement over time, with metrics on research quality and orchestration efficiency.
 
-## 🤝 Contributing & Development
+## Contributing & Development
 
 ### **Development Setup**
 ```bash
@@ -575,56 +569,56 @@ class CustomAgent(ResearchAgent):
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
 3. **Add tests** for new functionality
 4. **Run test suite** (`python -m pytest`)
-5. **Submit** a pull request with clear description
+5. Submit a pull request with a clear description
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🛡️ Security
+## Security
 
 Security is a top priority. Please review our [Security Policy](SECURITY.md) for:
 
-- 🔐 **Reporting Vulnerabilities**: How to responsibly disclose security issues
-- 🛠️ **Best Practices**: Guidelines for secure deployment and usage
-- 📋 **Supported Versions**: Which versions receive security updates
+- Reporting Vulnerabilities: How to responsibly disclose security issues
+- Best Practices: Guidelines for secure deployment and usage
+- Supported Versions: Which versions receive security updates
 
-## 🙋‍♀️ Support & Community
+##  Support & Community
 
 - **Issues**: [GitHub Issues](https://github.com/langchain-ai/open_deep_research/issues) for bug reports and feature requests
 - **Discussions**: [GitHub Discussions](https://github.com/langchain-ai/open_deep_research/discussions) for Q&A and community chat
 - **Documentation**: This comprehensive README and inline documentation
 - **Examples**: Check the `cli/` directory for usage patterns
 
-## ✨ Core Features Summary
+##  Core Features Summary
 
-### 🎯 **Intelligent Orchestration**
+###  **Intelligent Orchestration**
 - **Dynamic Sequence Generation**: LLM analyzes problems and generates optimal agent sequences
 - **Adaptive Strategy Selection**: Automatically chooses best approach (Theory-First, Market-First, Technical-First, Balanced)
 - **Real-time Optimization**: Continuous performance monitoring and sequence adjustment
 
-### ⚡ **Always-Parallel Architecture**
+###  **Always-Parallel Architecture**
 - **Concurrent Execution**: All sequences run simultaneously for maximum efficiency
 - **Thread-Safe Processing**: Robust parallel execution with proper resource management
 - **Stream Multiplexing**: Real-time result streaming from multiple agents
 
-### 🤖 **Specialized Agent Ecosystem**
+###  **Specialized Agent Ecosystem**
 - **Domain Experts**: Academic, Technical, Market, Analysis, and Synthesis specialists
 - **Tool Integration**: Native web search, MCP servers, and external APIs
 - **Multi-Modal Support**: Text, code, data, and structured content processing
 
-### 🏆 **Quality Assurance**
+###  Quality Assurance
 - **LLM Judge Evaluation**: Automated multi-criteria result comparison
 - **Performance Metrics**: Real-time monitoring of efficiency and quality
 - **Continuous Improvement**: Feedback loops for system optimization
 
-### 🛠️ **Production Features**
+###  Production Features
 - **Multi-Model Support**: OpenAI, Anthropic, Google, and 20+ other providers
 - **Enterprise Security**: JWT authentication, session isolation, audit logging
 - **Scalable Deployment**: LangGraph Cloud, Open Agent Platform, or self-hosted
 - **Comprehensive Monitoring**: Performance tracking, cost optimization, error handling
 
-## 📊 Performance Benchmarks
+##  Performance Benchmarks
 
 | Configuration | Reasoning Model | Research Model | Evaluation Model | Cost | Tokens | RACE Score | Innovation |
 |---------------|-----------------|----------------|------------------|------|---------|------------|------------|
@@ -633,17 +627,17 @@ Security is a top priority. Please review our [Security Policy](SECURITY.md) for
 | Balanced Performance | gpt-4.1 | gpt-4.1 | gpt-4.1 | $45.98 | 58M | 0.4309 | Medium |
 | Premium Intelligence | claude-sonnet-4 | claude-sonnet-4 | claude-sonnet-4 | $187.09 | 139M | 0.4401 | High |
 
-**Key Improvements Over Base Implementation:**
-- 🎯 **12.4% Higher RACE Score** through intelligent sequence selection
-- ⚡ **3x Faster Execution** via parallel processing optimization  
-- 💡 **Enhanced Innovation** through diverse agent perspectives
-- 💰 **Cost Optimization** with efficient model allocation per task type
+**Improvements Over Base Implementation:**
+- Higher RACE Score through intelligent sequence selection
+- Faster Execution via parallel processing optimization
+- Enhanced Innovation through diverse agent perspectives
+- Cost Optimization with efficient model allocation per task type
 
 ---
 
-**Built with ❤️ by the LangChain team and open source contributors**
+**Built with  by the LangChain team and open source contributors**
 
-## 🎯 **Quick Reference**
+##  **Quick Reference**
 
 ### **Most Common Commands**
 ```bash
@@ -670,56 +664,55 @@ export LANGFUSE_SECRET_KEY="your-key"
 export LOG_LEVEL="INFO"
 ```
 
-**Ready to explore the future of AI research orchestration? 🚀** 
 
-## 📊 Performance & Evaluation
+##  Performance & Evaluation
 
-### ✅ **Verified Capabilities & Achievements**
+### Verified Capabilities & Achievements
 
-**Our CLI system has been tested and demonstrated to work with the following capabilities:**
+Our CLI system has been tested and demonstrated to work with the following capabilities:
 
-#### **Core Architecture (Fully Implemented & Tested)**
-- ✅ **A2A Protocol**: Complete agent-to-agent communication system with Agent Cards
-- ✅ **LangGraph Orchestration**: Graph-based workflow with 5-stage research pipeline
-- ✅ **Hierarchical Context Management**: Root (20k tokens) + Branch (80k tokens) architecture
-- ✅ **GRPO Learning Framework**: Reinforcement learning with episode collection
-- ✅ **4 Specialized Agents**: Academic, Technical, Market, and Synthesis agents
-- ✅ **Rich CLI Interface**: Real-time streaming with progress visualization
-- ✅ **Langfuse Tracing**: Comprehensive observability and trace collection
+#### Core Architecture (Fully Implemented & Tested)
+- A2A Protocol: Complete agent-to-agent communication system with Agent Cards
+- LangGraph Orchestration: Graph-based workflow with 5-stage research pipeline
+- Hierarchical Context Management: Root (20k tokens) + Branch (80k tokens) architecture
+- GRPO Learning Framework: Reinforcement learning with episode collection
+- 4 Specialized Agents: Academic, Technical, Market, and Synthesis agents
+- Rich CLI Interface: Real-time streaming with progress visualization
+- Langfuse Tracing: Comprehensive observability and trace collection
 
-#### **Research Quality (Verified Output Examples)**
+#### Research Quality (Verified Output Examples)
 Our system produces comprehensive research outputs as demonstrated in `tests/expt_results/`:
 
-- **✅ Bird Migration Navigation**: 2,500+ word comprehensive analysis covering:
+- Bird Migration Navigation: 2,500+ word comprehensive analysis covering:
   - Magnetoreception mechanisms (radical pair & magnetite-based)
   - Celestial navigation (sun, star, polarized light compasses)
   - Neural processing centers (Cluster N, trigeminal pathways)
   - Environmental disturbances (light pollution, electromagnetic interference)
   - Species-specific strategies and integration patterns
 
-- **✅ Video Editing Software Market**: 3,200+ word market analysis covering:
+- Video Editing Software Market: 3,200+ word market analysis covering:
   - Adobe Premiere Pro & After Effects ecosystem dominance
   - CapCut's mobile-first social creator approach
   - DaVinci Resolve's professional color grading capabilities
   - Final Cut Pro's Apple silicon optimization
   - AI-powered features across all platforms
 
-- **✅ Airport Economic Impact**: 2,800+ word socioeconomic analysis covering:
+- Airport Economic Impact: 2,800+ word socioeconomic analysis covering:
   - Direct/indirect/induced economic effects for 500k passenger airports
   - Employment generation and wage premiums
   - Infrastructure development and regional growth patterns
   - Tourism and business activity stimulation
   - Comparative analysis across similar-sized facilities
 
-#### **Performance Targets (Aspirational Goals)**
-- 🎯 **Sequence Generation**: < 10 seconds for intelligent topic analysis
-- 🔄 **Parallel Execution**: All sequences complete within 5 minutes
-- 🏆 **Judge Evaluation**: < 30 seconds for multi-criteria comparison
-- 📈 **Total Workflow**: < 6 minutes for complete problem-solving cycle
+#### Performance Targets (Development Goals)
+- Sequence Generation: < 10 seconds for intelligent topic analysis
+- Parallel Execution: All sequences complete within 5 minutes
+- Judge Evaluation: < 30 seconds for multi-criteria comparison
+- Total Workflow: < 6 minutes for complete problem-solving cycle
 
 > **Note**: These are development targets, not verified benchmarks. Full Deep Research Bench evaluation would require $20-$100 in API costs for the complete 100-example dataset.
 
-#### **Deep Research Bench Integration**
+#### Deep Research Bench Integration
 The system includes infrastructure for Deep Research Bench evaluation:
 
 ```bash
@@ -729,11 +722,11 @@ python tests/run_evaluate.py
 
 This would provide systematic evaluation across 100 PhD-level research tasks. The evaluation framework is ready but has not been executed due to cost considerations.
 
-### 🚀 Deployments and Usage
+###  Deployments and Usage
 
 #### LangGraph Studio
 
-Follow the [quickstart](#-quickstart) to start LangGraph server locally and test the agent out on LangGraph Studio.
+Follow the [quickstart](#quickstart) to start LangGraph server locally and test the agent out on LangGraph Studio.
 
 #### Hosted deployment
  
@@ -749,19 +742,18 @@ You can also deploy your own instance of OAP, and make your own custom agents (l
 1. [Deploy Open Agent Platform](https://docs.oap.langchain.com/quickstart)
 2. [Add Deep Researcher to OAP](https://docs.oap.langchain.com/setup/agents)
 
-## 🏗️ Built on Open Deep Research Foundation
+##  Built on Open Deep Research Foundation
 
 **Optimal Tool Orchestration** extends and optimizes the proven Open Deep Research architecture, adding intelligent sequence generation and parallel execution capabilities while maintaining all the robust features of the original system.
 
 ### Enhanced Architecture Benefits
-- 🎯 **Intelligent Orchestration**: Adds LLM-powered sequence generation to the solid ODR foundation
-- ⚡ **Parallel Optimization**: 3x performance improvement through concurrent agent execution  
-- 🧠 **Adaptive Workflows**: Dynamic problem analysis and optimal agent selection
-- 🏆 **Quality Assurance**: Built-in LLM Judge evaluation for result validation
-- 🛠️ **Production Ready**: Enterprise-grade security, monitoring, and scalability features
+- Intelligent Orchestration: Adds LLM-powered sequence generation to the solid ODR foundation
+- Parallel Optimization: Performance improvement through concurrent agent execution
+- Adaptive Workflows: Dynamic problem analysis and optimal agent selection
+- Quality Assurance: Built-in LLM Judge evaluation for result validation
+- Production Ready: Enterprise-grade security, monitoring, and scalability features
 
-### Legacy Reference Implementations 📚
-
+### Legacy Reference Implementations 
 The `src/legacy/` directory contains the original Open Deep Research implementations for reference:
 - **Workflow Implementation**: Plan-and-execute with human-in-the-loop
 - **Multi-Agent Implementation**: Supervisor-researcher architecture
@@ -772,11 +764,11 @@ These serve as architectural baselines and demonstrate the evolution to our curr
 
 We welcome contributions from the community! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
 
-- 🐛 **Bug Reports**: Help us identify and fix issues
-- 🚀 **Feature Requests**: Suggest new capabilities and improvements
-- 💻 **Code Contributions**: Submit pull requests with enhancements
-- 📚 **Documentation**: Improve guides, examples, and API docs
-- 🧪 **Testing**: Add test cases and improve coverage
+- Bug Reports: Help us identify and fix issues
+- Feature Requests: Suggest new capabilities and improvements
+- Code Contributions: Submit pull requests with enhancements
+- Documentation: Improve guides, examples, and API docs
+- Testing: Add test cases and improve coverage
 
 ### Quick Contribution Steps
 
@@ -790,50 +782,50 @@ We welcome contributions from the community! Please see our [Contributing Guidel
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🛡️ Security
+##  Security
 
 Security is a top priority. Please review our [Security Policy](SECURITY.md) for:
 
 - 🔐 **Reporting Vulnerabilities**: How to responsibly disclose security issues
-- 🛠️ **Best Practices**: Guidelines for secure deployment and usage
-- 📋 **Supported Versions**: Which versions receive security updates
+-  **Best Practices**: Guidelines for secure deployment and usage
+-  **Supported Versions**: Which versions receive security updates
 
-## 🙋‍♀️ Support & Community
+##  Support & Community
 
 - **Issues**: [GitHub Issues](https://github.com/langchain-ai/open_deep_research/issues) for bug reports and feature requests
 - **Discussions**: [GitHub Discussions](https://github.com/langchain-ai/open_deep_research/discussions) for Q&A and community chat
 - **Documentation**: [Full Documentation](https://python.langchain.com/docs/integrations/tools/open_deep_research) 
 - **Examples**: Check the `examples/` directory for usage patterns
 
-## ✨ Core Features
+##  Core Features
 
-### 🎯 **Intelligent Orchestration**
+###  **Intelligent Orchestration**
 - **Dynamic Sequence Generation**: LLM analyzes problems and generates optimal agent sequences
 - **Adaptive Strategy Selection**: Automatically chooses best approach (Theory-First, Market-First, Technical-First, Balanced)
 - **Real-time Optimization**: Continuous performance monitoring and sequence adjustment
 
-### ⚡ **Always-Parallel Architecture**  
+###  **Always-Parallel Architecture**  
 - **Concurrent Execution**: All sequences run simultaneously for maximum efficiency
 - **Thread-Safe Processing**: Robust parallel execution with proper resource management
 - **Stream Multiplexing**: Real-time result streaming from multiple agents
 
-### 🤖 **Specialized Agent Ecosystem**
+###  **Specialized Agent Ecosystem**
 - **Domain Experts**: Academic, Technical, Market, Analysis, and Synthesis specialists
 - **Tool Integration**: Native web search, MCP servers, and external APIs
 - **Multi-Modal Support**: Text, code, data, and structured content processing
 
-### 🏆 **Quality Assurance**
+###  Quality Assurance
 - **LLM Judge Evaluation**: Automated multi-criteria result comparison
 - **Performance Metrics**: Real-time monitoring of efficiency and quality
 - **Continuous Improvement**: Feedback loops for system optimization
 
-### 🛠️ **Production Features**
+###  Production Features
 - **Multi-Model Support**: OpenAI, Anthropic, Google, and 20+ other providers
 - **Enterprise Security**: JWT authentication, session isolation, audit logging
 - **Scalable Deployment**: LangGraph Cloud, Open Agent Platform, or self-hosted
 - **Comprehensive Monitoring**: Performance tracking, cost optimization, error handling
 
-## 📊 Project Stats
+##  Project Stats
 
 ![GitHub repo size](https://img.shields.io/github/repo-size/langchain-ai/open_deep_research)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/langchain-ai/open_deep_research)
@@ -841,4 +833,4 @@ Security is a top priority. Please review our [Security Policy](SECURITY.md) for
 
 ---
 
-**Built with ❤️ by the LangChain team and open source contributors**
+Built by the LangChain team and open source contributors

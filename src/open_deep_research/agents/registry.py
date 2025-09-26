@@ -5,10 +5,9 @@ supporting both project-specific and user-global agent definitions with
 appropriate precedence handling.
 """
 
-import os
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
 import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from .loader import AgentLoader
 

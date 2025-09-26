@@ -4,21 +4,19 @@ This module provides integration points to incorporate sequence optimization
 into the main OpenDeepResearch workflow while maintaining backward compatibility.
 """
 
-import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import List
 
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
 from langgraph.types import Command
 
 from open_deep_research.configuration import Configuration
-from open_deep_research.state import AgentState
 from open_deep_research.sequencing import (
+    ParallelSequenceExecutor,
     SequenceOptimizationEngine,
-    ParallelSequenceExecutor
 )
+from open_deep_research.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +45,7 @@ async def dynamic_sequence_research_supervisor(state: AgentState, config: Runnab
     
     try:
         # Initialize sequence optimization engine
-        engine = SequenceOptimizationEngine(config)
+        SequenceOptimizationEngine(config)
         research_topic = state.get("research_brief", "")
         
         if not research_topic:
@@ -75,7 +73,7 @@ async def dynamic_sequence_research_supervisor(state: AgentState, config: Runnab
         comparison = await executor.execute_sequences_parallel(dynamic_sequences, research_topic)
         
         # Create research report from best performing sequence
-        research_synthesis = _create_dynamic_synthesis(comparison)
+        _create_dynamic_synthesis(comparison)
         notes = _extract_dynamic_notes(comparison)
         
         return Command(
@@ -113,7 +111,6 @@ def _extract_dynamic_notes(comparison_result) -> List[str]:
 
 def _create_comparison_synthesis(comparison) -> str:
     """Create a synthesis report from sequence comparison."""
-    
     synthesis_parts = [
         f"# Sequence Optimization Analysis: {comparison.research_topic}",
         "",
@@ -247,13 +244,11 @@ def _extract_sequence_notes(result) -> List[str]:
 
 def create_enhanced_deep_researcher():
     """Create an enhanced deep researcher graph with sequence optimization."""
-    
     from open_deep_research.deep_researcher import (
-        deep_researcher_builder,
         clarify_with_user,
-        write_research_brief,
         final_report_generation,
-        supervisor_subgraph
+        supervisor_subgraph,
+        write_research_brief,
     )
     
     # Create enhanced builder

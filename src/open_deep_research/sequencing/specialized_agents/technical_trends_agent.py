@@ -11,6 +11,7 @@ from typing import List
 from langchain_core.runnables import RunnableConfig
 
 from open_deep_research.sequencing.models import AgentType
+
 from .base_agent import SpecializedAgent
 
 logger = logging.getLogger(__name__)

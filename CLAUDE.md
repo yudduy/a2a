@@ -64,12 +64,6 @@ The system follows an "always-parallel" architecture where:
 - `models.py` - Evaluation data models
 - `prompts.py` - Evaluation criteria and prompts
 
-### Legacy Implementations (`src/legacy/`)
-Earlier research implementations for reference:
-- `graph.py` - Plan-and-execute workflow with human-in-the-loop
-- `multi_agent.py` - Supervisor-researcher multi-agent architecture
-- `legacy.md` - Legacy implementation documentation
-
 - `src/types/` - TypeScript definitions for agents, messages, and parallel execution
 
 ## Development Environment

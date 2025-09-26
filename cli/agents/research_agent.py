@@ -5,24 +5,23 @@ This module implements research agents that can be orchestrated by the LangGraph
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime
-import uuid
 import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 try:
-    from ..core.a2a_client import A2AClient, AgentCard, Task, AgentResult
-    from ..core.context_tree import ContextWindow
+    from langchain.chat_models import init_chat_model
     from langchain_core.messages import HumanMessage, SystemMessage
     from langchain_core.runnables import RunnableConfig
-    from langchain.chat_models import init_chat_model
+
+    from ..core.a2a_client import A2AClient, AgentCard, AgentResult, Task
+    from ..core.context_tree import ContextWindow
 except ImportError:
     # For running as standalone module
-    from core.a2a_client import A2AClient, AgentCard, Task, AgentResult
+    from core.a2a_client import AgentCard, AgentResult, Task
     from core.context_tree import ContextWindow
-    from langchain_core.messages import HumanMessage, SystemMessage
-    from langchain_core.runnables import RunnableConfig
     from langchain.chat_models import init_chat_model
+    from langchain_core.messages import HumanMessage, SystemMessage
 
 
 class ResearchAgent:
@@ -134,7 +133,7 @@ class ResearchAgent:
             from ..orchestration.trace_collector import TraceCollector
             trace_collector = TraceCollector.get_instance()
             trace_collector.trace_agent_execution(self.name, task)
-        except Exception as e:
+        except Exception:
             # Trace collection is optional - don't fail execution if it doesn't work
             pass
 

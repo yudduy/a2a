@@ -5,16 +5,18 @@ and provides comparative analysis to prove that sequential ordering affects
 productivity outcomes in research tasks.
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from langchain_core.runnables import RunnableConfig
 
+from open_deep_research.sequencing.metrics import MetricsCalculator
 from open_deep_research.sequencing.models import (
+    SEQUENCE_PATTERNS,
     AgentExecutionResult,
     AgentType,
+    DynamicSequencePattern,
     QueryType,
     ResearchDomain,
     ScopeBreadth,
@@ -22,19 +24,15 @@ from open_deep_research.sequencing.models import (
     SequenceComparison,
     SequencePattern,
     SequenceResult,
-    DynamicSequencePattern,
-    SEQUENCE_PATTERNS,
-    ToolProductivityMetrics
 )
 from open_deep_research.sequencing.research_director import SupervisorResearchDirector
+from open_deep_research.sequencing.sequence_selector import SequenceAnalyzer
 from open_deep_research.sequencing.specialized_agents import (
     AcademicAgent,
     IndustryAgent,
     ResearchContext,
-    TechnicalTrendsAgent
+    TechnicalTrendsAgent,
 )
-from open_deep_research.sequencing.metrics import MetricsCalculator
-from open_deep_research.sequencing.sequence_selector import SequenceAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +214,10 @@ class SequenceOptimizationEngine:
                     )
                     
                     # Create insight transition record
-                    from open_deep_research.sequencing.models import InsightTransition, InsightType
+                    from open_deep_research.sequencing.models import (
+                        InsightTransition,
+                        InsightType,
+                    )
                     transition = InsightTransition(
                         from_agent=agent_order[position - 2],
                         to_agent=agent_type,
@@ -356,7 +357,6 @@ class SequenceOptimizationEngine:
         sequence_pattern: Union[SequencePattern, DynamicSequencePattern]
     ) -> str:
         """Synthesize findings from all agents into a comprehensive summary."""
-        
         # Handle both pattern types
         if isinstance(sequence_pattern, DynamicSequencePattern):
             strategy_description = f"Dynamic Pattern (ID: {sequence_pattern.sequence_id})"

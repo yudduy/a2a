@@ -20,7 +20,7 @@ from open_deep_research.sequencing.models import (
     InsightTransition,
     SequenceComparison,
     SequenceResult,
-    ToolProductivityMetrics
+    ToolProductivityMetrics,
 )
 
 logger = logging.getLogger(__name__)
@@ -451,7 +451,7 @@ class MetricsCalculator:
     def generate_productivity_report(self, comparison: SequenceComparison) -> str:
         """Generate a comprehensive productivity analysis report."""
         report_sections = [
-            f"# Tool Productivity Analysis Report",
+            "# Tool Productivity Analysis Report",
             f"## Research Topic: {comparison.research_topic}",
             f"## Analysis Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
@@ -667,7 +667,6 @@ class MetricsCalculator:
         partial: bool
     ):
         """Notify all streaming subscribers of metrics update."""
-        
         update = {
             'sequence_id': sequence_id,
             'metrics': metrics,
@@ -754,7 +753,6 @@ class MetricsCalculator:
         total_agents: int
     ) -> ToolProductivityMetrics:
         """Perform incremental metrics calculation for performance."""
-        
         # Calculate new totals
         new_total_calls = previous_metrics.total_agent_calls + new_agent_result.tool_calls_made
         new_insights_count = previous_metrics.useful_insights_count + len(new_agent_result.key_insights)

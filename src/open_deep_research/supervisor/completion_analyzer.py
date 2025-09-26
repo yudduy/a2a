@@ -4,13 +4,14 @@ This module analyzes agent completion signals and provides insights for
 dynamic sequence modification and next agent selection.
 """
 
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import AIMessage
+
 from open_deep_research.agents import CompletionDetector
-from open_deep_research.state import SequentialSupervisorState, AgentExecutionReport
+from open_deep_research.state import SequentialSupervisorState
 
 logger = logging.getLogger(__name__)
 
@@ -291,7 +292,7 @@ class CompletionAnalyzer:
         insight_text = " ".join(all_insights).lower()
         
         # Generate questions based on agent type and insights
-        agent_expertise = agent_config.get("expertise_areas", [])
+        agent_config.get("expertise_areas", [])
         
         # Generic follow-up questions
         if current_insights:

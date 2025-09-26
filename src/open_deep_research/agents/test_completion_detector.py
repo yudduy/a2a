@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-"""
-Comprehensive test suite for CompletionDetector.
+"""Comprehensive test suite for CompletionDetector.
 
 This test suite validates the completion detection system for sequential
 multi-agent workflows, ensuring robust detection of task completion
 without requiring explicit handoff tools.
 """
 
-import unittest
 import re
-from langchain_core.messages import AIMessage
+import unittest
 
 from completion_detector import (
-    CompletionDetector, 
-    DetectionStrategy, 
+    CompletionDetector,
     CompletionPattern,
     DetectionResult,
-    CompletionConfidence
+    DetectionStrategy,
 )
+from langchain_core.messages import AIMessage
 
 
 class TestCompletionDetector(unittest.TestCase):
@@ -391,14 +389,12 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    print("🧪 Running CompletionDetector Test Suite")
-    print("=========================================")
     
     success = run_tests()
     
     if success:
-        print("\n✅ All tests passed! CompletionDetector is ready for production.")
+        pass
     else:
-        print("\n❌ Some tests failed. Please review the output above.")
+        pass
         
     exit(0 if success else 1)

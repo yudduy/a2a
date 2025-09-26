@@ -6,15 +6,13 @@ Open Deep Research codebase for orchestrating sequential agent execution.
 
 import asyncio
 import logging
-from datetime import datetime
 from typing import List
 
 from langchain_core.messages import HumanMessage
 
 from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.supervisor import SequentialSupervisor, SupervisorConfig
-from open_deep_research.state import SequentialSupervisorState
 from open_deep_research.configuration import Configuration
+from open_deep_research.supervisor import SequentialSupervisor, SupervisorConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -139,10 +137,6 @@ async def run_research_sequence(
 
 async def example_academic_research():
     """Example: Academic research using specialized agents."""
-    print("\n" + "="*50)
-    print("EXAMPLE: Academic Research Pipeline")
-    print("="*50)
-    
     research_topic = "Impact of AI on Academic Publishing and Peer Review"
     
     # Define sequence of specialized agents
@@ -172,30 +166,18 @@ async def example_academic_research():
         # Display results
         if results.get("running_report"):
             report = results["running_report"]
-            print(f"\n🎯 Research Completed!")
-            print(f"📊 Agents Executed: {report.total_agents_executed}")
-            print(f"💡 Total Insights: {len(report.all_insights)}")
-            print(f"⏱️  Total Time: {report.total_execution_time:.1f}s")
-            print(f"🔗 Insight Connections: {len(report.insight_connections)}")
             
             # Show executive summary
             if report.executive_summary:
-                print(f"\n📋 Executive Summary:")
-                print("-" * 40)
-                print(report.executive_summary[:500] + "..." if len(report.executive_summary) > 500 else report.executive_summary)
+                pass
         
-        print("\n✅ Academic research example completed successfully!")
         
-    except Exception as e:
-        print(f"❌ Academic research example failed: {e}")
+    except Exception:
+        pass
 
 
 async def example_industry_analysis():
     """Example: Industry analysis with dynamic sequence modification."""
-    print("\n" + "="*50)
-    print("EXAMPLE: Industry Analysis with Dynamic Agents")
-    print("="*50)
-    
     research_topic = "Emerging Trends in Enterprise AI Adoption"
     
     # Start with basic sequence
@@ -223,22 +205,16 @@ async def example_industry_analysis():
         
         # Display results
         if results.get("sequence_modifications"):
-            print(f"\n🔄 Dynamic Modifications: {len(results['sequence_modifications'])}")
             for mod in results["sequence_modifications"]:
-                print(f"   - {mod.get('type', 'unknown')}: {mod.get('description', 'No description')}")
+                pass
         
-        print("\n✅ Industry analysis example completed successfully!")
         
-    except Exception as e:
-        print(f"❌ Industry analysis example failed: {e}")
+    except Exception:
+        pass
 
 
 async def example_error_handling():
     """Example: Error handling and recovery in sequential workflows."""
-    print("\n" + "="*50)
-    print("EXAMPLE: Error Handling and Recovery")
-    print("="*50)
-    
     research_topic = "Blockchain Scalability Solutions"
     
     # Include a non-existent agent to test error handling
@@ -259,42 +235,33 @@ async def example_error_handling():
         # This should fail validation
         validation = supervisor.validate_sequence(planned_agents)
         if not validation["valid"]:
-            print(f"❌ Validation failed as expected: {validation['errors']}")
             
             # Fix the sequence
             fixed_agents = ["technical_agent", "market_agent"]
             validation = supervisor.validate_sequence(fixed_agents)
             
             if validation["valid"]:
-                print(f"✅ Fixed sequence is valid: {fixed_agents}")
                 
                 # Execute with fixed sequence
-                results = await run_research_sequence(
+                await run_research_sequence(
                     supervisor=supervisor,
                     research_topic=research_topic,
                     planned_agents=fixed_agents
                 )
                 
-                print("✅ Error handling example completed successfully!")
         
-    except Exception as e:
-        print(f"❌ Error handling example failed: {e}")
+    except Exception:
+        pass
 
 
 async def main():
     """Run all examples demonstrating Sequential Supervisor usage."""
-    print("🚀 Sequential Supervisor Usage Examples")
-    print("=" * 60)
-    
     try:
         # Run examples
         await example_academic_research()
         await example_industry_analysis()
         await example_error_handling()
         
-        print("\n" + "="*60)
-        print("🎉 All examples completed successfully!")
-        print("="*60)
         
     except Exception as e:
         logger.error(f"Examples failed: {e}")

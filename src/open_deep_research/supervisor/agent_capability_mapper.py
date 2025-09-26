@@ -5,11 +5,10 @@ capabilities in a format suitable for LLM reasoning about sequence generation.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Set
-from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from .sequence_models import AgentCapability
 from ..agents.registry import AgentRegistry
+from .sequence_models import AgentCapability
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +255,7 @@ class AgentCapabilityMapper:
             One-line strength summary
         """
         expertise_areas = self._extract_expertise_areas(agent_config)
-        agent_name = agent_config.get("name", "Agent")
+        agent_config.get("name", "Agent")
         
         if len(expertise_areas) == 1:
             return f"Specializes in {expertise_areas[0].lower()} research and analysis"

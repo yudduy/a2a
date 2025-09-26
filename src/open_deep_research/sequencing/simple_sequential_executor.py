@@ -8,16 +8,14 @@ pattern with a lightweight approach optimized for the always-parallel architectu
 import asyncio
 import logging
 import time
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from open_deep_research.configuration import Configuration
 from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.sequencing.models import AgentExecutionResult, AgentType
+from open_deep_research.configuration import Configuration
 from open_deep_research.supervisor.sequence_models import AgentSequence
 
 logger = logging.getLogger(__name__)
@@ -191,9 +189,10 @@ class SimpleSequentialExecutor:
         Returns:
             Dictionary with agent execution results
         """
-        from open_deep_research.state import ResearcherState
-        from langchain_core.messages import HumanMessage, SystemMessage
+        from langchain_core.messages import HumanMessage
+
         from open_deep_research.deep_researcher import researcher_subgraph
+        from open_deep_research.state import ResearcherState
         
         start_time = time.time()
         
@@ -201,18 +200,18 @@ class SimpleSequentialExecutor:
             # Create agent-specific research prompt based on configuration and context
             agent_description = agent_config.get("description", f"Research agent: {agent_name}")
             agent_expertise = agent_config.get("expertise_areas", [])
-            system_prompt = agent_config.get("system_prompt", "You are a specialized research agent.")
+            agent_config.get("system_prompt", "You are a specialized research agent.")
             
             # Build research context for this agent
             previous_insights_text = ""
             if research_context.get("previous_insights"):
-                previous_insights_text = f"\n\nPrevious Research Insights:\n" + "\n".join([
+                previous_insights_text = "\n\nPrevious Research Insights:\n" + "\n".join([
                     f"- {insight}" for insight in research_context["previous_insights"][-5:]  # Last 5 insights
                 ])
             
             accumulated_findings_text = ""
             if research_context.get("accumulated_findings"):
-                accumulated_findings_text = f"\n\nAccumulated Findings:\n" + "\n".join([
+                accumulated_findings_text = "\n\nAccumulated Findings:\n" + "\n".join([
                     f"- {finding[:200]}..." if len(finding) > 200 else f"- {finding}"
                     for finding in research_context["accumulated_findings"][-3:]  # Last 3 findings
                 ])

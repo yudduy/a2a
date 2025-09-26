@@ -5,11 +5,10 @@ focused research without cognitive offloading and proper integration with
 the sequence optimization system.
 """
 
-import asyncio
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -17,18 +16,14 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
 from open_deep_research.configuration import Configuration
+from open_deep_research.sequencing.models import AgentExecutionResult, AgentType
 from open_deep_research.utils import (
     clean_reasoning_model_output,
     get_all_tools,
     get_api_key_for_model,
     get_model_config_for_provider,
     get_today_str,
-    think_tool
-)
-from open_deep_research.sequencing.models import (
-    AgentExecutionResult,
-    AgentType,
-    InsightType
+    think_tool,
 )
 
 logger = logging.getLogger(__name__)
@@ -212,7 +207,6 @@ Remember: Your goal is to provide unique value through your specialized perspect
         context: ResearchContext
     ) -> str:
         """Conduct focused research with cognitive offloading prevention."""
-        
         # Configure executor model for specialized agents
         model_config = get_model_config_for_provider(
             model_name=self.configurable.executor_model,
@@ -466,7 +460,7 @@ Start by using think_tool to plan your research approach, then conduct systemati
             
             # Add specialization context if beneficial
             if context.sequence_position < 3:  # Not the last agent
-                refined_insight += f" [For next agent consideration]"
+                refined_insight += " [For next agent consideration]"
             
             refined.append(refined_insight)
         

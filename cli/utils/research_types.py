@@ -4,9 +4,8 @@ This module contains type definitions used across the research CLI system.
 """
 
 import asyncio
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 

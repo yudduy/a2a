@@ -7,11 +7,11 @@ criteria and comparative analysis to determine the most effective sequence strat
 
 from .llm_judge import LLMJudge
 from .models import (
-    EvaluationCriteria,
-    ReportEvaluation, 
     ComparativeAnalysis,
+    EvaluationCriteria,
     EvaluationResult,
-    SequenceComparison
+    ReportEvaluation,
+    SequenceComparison,
 )
 from .prompts import EvaluationPrompts
 

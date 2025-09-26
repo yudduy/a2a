@@ -4,15 +4,11 @@ This module manages the flow of context, insights, and knowledge between agents
 in a sequential workflow, ensuring each agent receives optimal context.
 """
 
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, List
 
-from open_deep_research.state import (
-    SequentialSupervisorState, 
-    SequentialAgentState,
-    AgentExecutionReport
-)
+from open_deep_research.state import SequentialAgentState, SequentialSupervisorState
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +43,6 @@ class ContextManager:
     
     def __init__(self):
         """Initialize the context manager."""
-        
         # Context filtering strategies
         self.max_context_items = 10  # Limit context to prevent overload
         self.relevance_threshold = 0.3  # Minimum relevance score
@@ -161,8 +156,8 @@ class ContextManager:
         questions = []
         
         # Get agent expertise areas
-        expertise_areas = agent_config.get("expertise_areas", [])
-        agent_description = agent_config.get("description", "")
+        agent_config.get("expertise_areas", [])
+        agent_config.get("description", "")
         
         # Base questions for the research topic
         research_topic = state.research_topic
@@ -422,7 +417,7 @@ class ContextManager:
         priorities = []
         
         # Get agent expertise areas
-        expertise_areas = agent_config.get("expertise_areas", [])
+        agent_config.get("expertise_areas", [])
         
         # Priority based on agent type and sequence position
         position = state.sequence_position

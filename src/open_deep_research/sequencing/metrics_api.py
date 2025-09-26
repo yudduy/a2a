@@ -4,21 +4,19 @@ This module provides comprehensive API endpoints for accessing real-time metrics
 creating subscriptions, and managing metrics streaming for parallel sequence execution.
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .models import MetricsUpdateType
-from .metrics_aggregator import MetricsAggregator, MetricsAggregatorContext
+from .metrics_aggregator import MetricsAggregator
+from .parallel_executor import ParallelSequenceExecutor
 from .stream_multiplexer import StreamMultiplexer, create_stream_multiplexer
-from .parallel_executor import ParallelSequenceExecutor, parallel_executor_context
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +120,6 @@ class MetricsAPI:
     
     def _setup_routes(self):
         """Set up API routes."""
-        
         # WebSocket endpoints
         self.app.websocket("/ws/metrics")(self.websocket_metrics_stream)
         self.app.websocket("/ws/metrics/{execution_id}")(self.websocket_execution_metrics)
@@ -204,7 +201,6 @@ class MetricsAPI:
     
     async def websocket_metrics_stream(self, websocket: WebSocket):
         """WebSocket endpoint for streaming all metrics updates."""
-        
         await websocket.accept()
         client_id = str(uuid4())
         connection_id = None
@@ -272,7 +268,6 @@ class MetricsAPI:
     
     async def websocket_execution_metrics(self, websocket: WebSocket, execution_id: str):
         """WebSocket endpoint for streaming metrics for a specific execution."""
-        
         await websocket.accept()
         client_id = str(uuid4())
         connection_id = None
@@ -376,7 +371,6 @@ class MetricsAPI:
     
     async def create_subscription(self, request: MetricsSubscriptionRequest):
         """Create a new metrics subscription."""
-        
         if not stream_multiplexer:
             raise HTTPException(status_code=503, detail="Stream multiplexer not available")
         
@@ -429,7 +423,6 @@ class MetricsAPI:
     
     async def delete_subscription(self, subscription_id: str):
         """Delete a metrics subscription."""
-        
         if not stream_multiplexer:
             raise HTTPException(status_code=503, detail="Stream multiplexer not available")
         
@@ -438,7 +431,6 @@ class MetricsAPI:
     
     async def get_subscription(self, subscription_id: str):
         """Get subscription details."""
-        
         if not stream_multiplexer:
             raise HTTPException(status_code=503, detail="Stream multiplexer not available")
         
@@ -450,7 +442,6 @@ class MetricsAPI:
     
     async def list_executions(self):
         """List all active and recent executions."""
-        
         if not metrics_aggregator:
             raise HTTPException(status_code=503, detail="Metrics aggregator not available")
         
@@ -485,7 +476,6 @@ class MetricsAPI:
     
     async def get_execution_metrics(self, execution_id: str):
         """Get current metrics snapshot for an execution."""
-        
         if not metrics_aggregator:
             raise HTTPException(status_code=503, detail="Metrics aggregator not available")
         
@@ -506,7 +496,6 @@ class MetricsAPI:
     
     async def get_winner_analysis(self, execution_id: str):
         """Get winner analysis for an execution."""
-        
         if not metrics_aggregator:
             raise HTTPException(status_code=503, detail="Metrics aggregator not available")
         
@@ -518,7 +507,6 @@ class MetricsAPI:
     
     async def get_system_stats(self):
         """Get system-wide statistics."""
-        
         stats = {}
         
         if metrics_aggregator:
@@ -540,7 +528,6 @@ class MetricsAPI:
     
     async def health_check(self):
         """Health check endpoint."""
-        
         health = {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),

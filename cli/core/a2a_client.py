@@ -3,12 +3,9 @@
 Based on Google's Agent-to-Agent (A2A) protocol for standardized agent communication.
 """
 
-import asyncio
-import json
 import logging
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import httpx
 from pydantic import BaseModel, Field
@@ -131,7 +128,6 @@ class A2AClient:
         if not agent_base_url:
             raise ValueError(f"No base_url found in agent card: {agent_card.name}")
 
-        endpoint = f"{agent_base_url}/a2a/task"
 
         try:
             # Send A2A message
@@ -350,7 +346,6 @@ class A2AServer:
     async def start(self):
         """Start A2A server."""
         from fastapi import FastAPI, HTTPException
-        from fastapi.responses import JSONResponse
 
         self._app = FastAPI(title=f"A2A Agent Server - {self.agent_name}")
 

@@ -15,44 +15,40 @@ Test Categories:
 """
 
 import asyncio
-import pytest
-import tempfile
 import shutil
+import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+import pytest
 from langchain_core.runnables import RunnableConfig
-from langgraph.types import Command
 
-from open_deep_research.supervisor.sequential_supervisor import SequentialSupervisor, SupervisorConfig
+from open_deep_research.agents.completion_detector import (
+    CompletionDetector,
+    CompletionResult,
+    DetectionStrategy,
+)
 from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.agents.completion_detector import CompletionDetector, DetectionStrategy, CompletionResult
-from open_deep_research.orchestration.report_builder import RunningReportBuilder
-from open_deep_research.sequencing.sequence_engine import SequenceOptimizationEngine
-from open_deep_research.sequencing.models import (
-    DynamicSequencePattern,
-    SequencePattern,
-    AgentType,
-    SequenceResult,
-    AgentExecutionResult,
-    SequenceComparison,
-    ParallelMetrics,
-    SequenceMetrics,
-    SEQUENCE_PATTERNS
-)
 from open_deep_research.configuration import Configuration
-from open_deep_research.state import (
-    DeepResearchState,
-    SequentialSupervisorState,
-    SequentialAgentState,
-    AgentExecutionReport,
-    RunningReport
+from open_deep_research.sequencing.models import (
+    SEQUENCE_PATTERNS,
+    AgentExecutionResult,
+    AgentType,
+    DynamicSequencePattern,
+    ParallelMetrics,
+    SequenceResult,
 )
-
+from open_deep_research.sequencing.sequence_engine import SequenceOptimizationEngine
+from open_deep_research.state import (
+    SequentialAgentState,
+    SequentialSupervisorState,
+)
+from open_deep_research.supervisor.sequential_supervisor import (
+    SequentialSupervisor,
+    SupervisorConfig,
+)
 
 # =============================================================================
 # SEQUENTIAL SUPERVISOR INTEGRATION TESTS
@@ -192,7 +188,7 @@ Specialized in data analysis and statistical research.
         
         # Mock agent execution
         with patch('open_deep_research.supervisor.sequential_supervisor.init_chat_model'):
-            supervisor = SequentialSupervisor(
+            SequentialSupervisor(
                 agent_registry=self.agent_registry,
                 config=self.supervisor_config,
                 system_config=self.config
@@ -256,7 +252,6 @@ class TestAutomaticHandoffs:
     
     def test_handoff_timing_requirements(self):
         """Test handoff timing meets performance requirements."""
-        import time
         
         # Mock handoff operation
         start_time = time.time()
@@ -418,7 +413,7 @@ class TestCompletionDetection:
     def test_semantic_completion_detection(self):
         """Test semantic-based completion detection."""
         # Mock completion detector
-        detector = CompletionDetector(
+        CompletionDetector(
             strategy=DetectionStrategy.SEMANTIC_ANALYSIS,
             confidence_threshold=self.config.completion_confidence_threshold
         )
@@ -494,7 +489,6 @@ class TestPerformanceBenchmarks:
     
     def test_handoff_timing_requirements(self):
         """Test that handoffs complete within 3 seconds."""
-        import time
         
         # Simulate handoff operations
         start_time = time.time()

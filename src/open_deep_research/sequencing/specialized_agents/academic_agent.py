@@ -11,6 +11,7 @@ from typing import List
 from langchain_core.runnables import RunnableConfig
 
 from open_deep_research.sequencing.models import AgentType
+
 from .base_agent import SpecializedAgent
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ disciplines and building robust theoretical frameworks."""
                     1
                 )
                 # Add academic context requirement
-                if not "research" in enhanced.lower():
+                if "research" not in enhanced.lower():
                     enhanced += " Include relevant academic research and theoretical perspectives."
                 return enhanced
         

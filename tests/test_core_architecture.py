@@ -13,33 +13,22 @@ Test Categories:
 3. Agent Registry Core (from test_agent_registry_loading.py)
 """
 
-import pytest
 import os
-import tempfile
 import shutil
-import asyncio
+import tempfile
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-from unittest.mock import Mock, AsyncMock, patch
 
-from pydantic import ValidationError
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langgraph.graph import END, StateGraph
 
-from open_deep_research.configuration import (
-    Configuration, 
-    SearchAPI,
-    AgentFileFormat,
-    ReportUpdateFrequency,
-    MCPConfig
-)
-from open_deep_research.supervisor.sequential_supervisor import SupervisorConfig
 from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.agents.loader import AgentLoader
-from open_deep_research.deep_researcher import deep_researcher
+from open_deep_research.configuration import (
+    AgentFileFormat,
+    Configuration,
+    ReportUpdateFrequency,
+)
 from open_deep_research.state import DeepResearchState
-
 
 # =============================================================================
 # CONFIGURATION SYSTEM TESTS

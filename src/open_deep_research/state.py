@@ -1,8 +1,8 @@
 """Graph state definitions and data structures for the Deep Research agent."""
 
 import operator
-from typing import Annotated, Optional, Dict, List, Any, Union
 from datetime import datetime
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 from langchain_core.messages import MessageLikeRepresentation
 from langgraph.graph import MessagesState

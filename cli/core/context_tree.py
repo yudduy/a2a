@@ -4,14 +4,10 @@ This module implements the hierarchical context tree from the blueprint,
 providing intelligent compression and selective context inheritance for agents.
 """
 
-import asyncio
-import logging
-from typing import Dict, Any, List, Optional, Set
-from dataclasses import dataclass, field
-from datetime import datetime
 import json
-
-from pydantic import BaseModel, Field
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 class ContextWindow:
@@ -343,7 +339,7 @@ class ContextTree:
         """
         # This would typically store to a trace database or file system
         # For now, we'll store in memory (could be enhanced)
-        full_result_key = f"full_result_{agent_id}_{datetime.utcnow().isoformat()}"
+        f"full_result_{agent_id}_{datetime.utcnow().isoformat()}"
         # In a real implementation, this would be stored in Langfuse or similar
         self.logger.debug(f"Storing full result for {agent_id}")
 
@@ -387,7 +383,7 @@ class ContextTree:
     def optimize_context(self):
         """Optimize context tree by cleaning up old or irrelevant content."""
         # Remove old branch contexts that are no longer needed
-        current_time = datetime.utcnow()
+        datetime.utcnow()
 
         contexts_to_remove = []
         for agent_id, context in self.branch_contexts.items():

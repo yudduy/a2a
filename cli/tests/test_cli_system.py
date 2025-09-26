@@ -1,32 +1,34 @@
 """Comprehensive tests for CLI research system components."""
 
-import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
-from typing import Dict, Any, List
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 # Import CLI components (will be created)
 try:
-    from ..core.a2a_client import A2AClient, AgentCard, Task, AgentResult
-    from ..core.context_tree import ContextTree, ContextWindow, AdaptiveCompressor
-    from ..orchestration.langgraph_orchestrator import OrchestrationEngine, ResearchResult
-    from ..orchestration.trace_collector import TraceCollector
-    from ..core.cli_interface import ResearchCLI
     from ..agents.research_agent import ResearchAgent
-    from ..utils.research_types import ResearchState, StreamMessage, RoutedMessage
+    from ..core.a2a_client import A2AClient, AgentCard, AgentResult, Task
+    from ..core.cli_interface import ResearchCLI
+    from ..core.context_tree import AdaptiveCompressor, ContextTree, ContextWindow
+    from ..orchestration.langgraph_orchestrator import (
+        OrchestrationEngine,
+        ResearchResult,
+    )
+    from ..orchestration.trace_collector import TraceCollector
+    from ..utils.research_types import ResearchState, RoutedMessage, StreamMessage
 except ImportError:
     # For running tests directly
-    import sys
     import os
+    import sys
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-    from core.a2a_client import A2AClient, AgentCard, Task, AgentResult
-    from core.context_tree import ContextTree, ContextWindow, AdaptiveCompressor
+    from agents.research_agent import ResearchAgent
+    from core.a2a_client import A2AClient, AgentCard, Task
+    from core.cli_interface import ResearchCLI
+    from core.context_tree import AdaptiveCompressor, ContextTree, ContextWindow
     from orchestration.langgraph_orchestrator import OrchestrationEngine, ResearchResult
     from orchestration.trace_collector import TraceCollector
-    from core.cli_interface import ResearchCLI
-    from agents.research_agent import ResearchAgent
-    from utils.research_types import ResearchState, StreamMessage, RoutedMessage
 
 
 class TestA2AProtocol:
@@ -274,12 +276,6 @@ class TestOrchestrationEngine:
             engine = OrchestrationEngine()
 
             # Mock streaming response
-            mock_stream = [
-                {"type": "agent_spawn", "agent_id": "search_agent"},
-                {"type": "agent_progress", "agent_id": "search_agent", "status": "Searching..."},
-                {"type": "agent_complete", "agent_id": "search_agent", "summary": "Found 10 relevant papers"},
-                {"type": "research_complete", "result": "Final research synthesis"}
-            ]
 
             mock_result = ResearchResult(
                 synthesis="Streaming research completed",
@@ -350,7 +346,6 @@ class TestCLIInterface:
             cli = ResearchCLI()
             # The orchestrator is created lazily, so we need to access it
             # Test that we can access the orchestrator property
-            orchestrator = cli.orchestrator
             assert hasattr(cli, 'orchestrator')
 
     @pytest.mark.asyncio
@@ -371,14 +366,13 @@ class TestCLIInterface:
             cli = ResearchCLI()
 
             # Test with mock console
-            with patch('rich.console.Console') as mock_console:
+            with patch('rich.console.Console'):
                 result = await cli.research("Test research query about machine learning")
 
                 # When API keys are not available, result will be a ResearchResult object
                 assert result is not None
                 assert hasattr(result, 'synthesis')
                 mock_engine_instance.execute_research.assert_called_once_with("Test research query about machine learning")
-
 
 class TestResearchAgent:
     """Test research agent functionality."""
@@ -398,7 +392,8 @@ class TestResearchAgent:
 
         # Mock task
         task = Task(
-            id="task-123",
+            id="task-123"
+        )
         # Mock agent execution
         with patch.object(agent, '_execute', new_callable=AsyncMock) as mock_execute:
             mock_execute.return_value = {
@@ -410,11 +405,6 @@ class TestResearchAgent:
             assert result.summary == "Task completed successfully"
             assert len(result.artifacts) == 1
             mock_execute.assert_called_once()
-        result = await agent.execute_task(task)
-
-        assert result.summary == "Task completed successfully"
-        assert len(result.artifacts) == 1
-
 
 class TestIntegration:
     """Test end-to-end integration scenarios."""

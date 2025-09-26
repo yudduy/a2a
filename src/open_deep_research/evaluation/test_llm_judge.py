@@ -1,22 +1,20 @@
 """Integration tests for the LLM Judge evaluation system."""
 
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from langchain_core.runnables import RunnableConfig
-from pydantic import ValidationError
 
 from open_deep_research.evaluation import LLMJudge
 from open_deep_research.evaluation.models import (
-    EvaluationCriteria, 
-    ReportEvaluation,
     ComparativeAnalysis,
-    EvaluationResult
+    EvaluationCriteria,
+    EvaluationResult,
+    ReportEvaluation,
 )
-from open_deep_research.state import RunningReport, AgentExecutionReport
+from open_deep_research.state import AgentExecutionReport, RunningReport
 
 
 class TestLLMJudge:
@@ -454,5 +452,4 @@ def run_integration_tests():
 
 
 if __name__ == "__main__":
-    print("Running LLM Judge Test Suite...")
     run_test_suite()

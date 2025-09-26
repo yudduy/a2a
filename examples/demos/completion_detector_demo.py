@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-"""
-Demonstration script for CompletionDetector integration with sequential multi-agent workflows.
+"""Demonstration script for CompletionDetector integration with sequential multi-agent workflows.
 
 This script shows how the completion detector works with agent registry completion indicators
 and provides examples of robust completion detection in production scenarios.
 """
 
 import logging
-from typing import List, Dict, Any
-from langchain_core.messages import AIMessage
 
-from completion_detector import CompletionDetector, DetectionStrategy, CompletionPattern
-from registry import AgentRegistry
+from completion_detector import CompletionDetector, CompletionPattern, DetectionStrategy
+from langchain_core.messages import AIMessage
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -20,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 def demo_basic_completion_detection():
     """Demonstrate basic completion detection functionality."""
-    print("=== Basic Completion Detection Demo ===\n")
-    
     detector = CompletionDetector(debug_mode=False)
     
     # Test messages with varying completion confidence
@@ -47,21 +42,12 @@ def demo_basic_completion_detection():
         message = AIMessage(content=content)
         
         # Analyze with combined strategy
-        result = detector.analyze_completion_patterns(message)
+        detector.analyze_completion_patterns(message)
         
-        print(f"Test: {description}")
-        print(f"  Content: {content[:80]}...")
-        print(f"  Complete: {result.is_complete}")
-        print(f"  Confidence: {result.confidence:.3f}")
-        print(f"  Matched patterns: {len(result.matched_patterns)}")
-        print(f"  Top patterns: {result.matched_patterns[:2]}")
-        print()
 
 
 def demo_custom_agent_indicators():
     """Demonstrate custom completion indicators per agent type."""
-    print("=== Custom Agent Indicators Demo ===\n")
-    
     detector = CompletionDetector()
     
     # Simulate different agent types with custom completion indicators
@@ -102,27 +88,18 @@ def demo_custom_agent_indicators():
         message = AIMessage(content=scenario["message"])
         
         # Test without custom indicators
-        result_default = detector.analyze_completion_patterns(message)
+        detector.analyze_completion_patterns(message)
         
         # Test with custom indicators
-        result_custom = detector.analyze_completion_patterns(
+        detector.analyze_completion_patterns(
             message, 
             custom_indicators=scenario["custom_indicators"]
         )
         
-        print(f"Agent: {scenario['agent_type']}")
-        print(f"  Message: {scenario['message'][:60]}...")
-        print(f"  Default confidence: {result_default.confidence:.3f}")
-        print(f"  Custom confidence: {result_custom.confidence:.3f}")
-        print(f"  Improvement: {result_custom.confidence - result_default.confidence:.3f}")
-        print(f"  Custom patterns matched: {[p for p in result_custom.matched_patterns if 'Custom:' in p]}")
-        print()
 
 
 def demo_detection_strategies():
     """Demonstrate different detection strategies and their effectiveness."""
-    print("=== Detection Strategies Demo ===\n")
-    
     detector = CompletionDetector()
     
     # Test message with mixed signals
@@ -146,23 +123,14 @@ def demo_detection_strategies():
         DetectionStrategy.COMBINED
     ]
     
-    print("Testing different detection strategies on the same message:\n")
     
     for strategy in strategies:
-        result = detector.analyze_completion_patterns(message, strategy=strategy)
+        detector.analyze_completion_patterns(message, strategy=strategy)
         
-        print(f"Strategy: {strategy.value}")
-        print(f"  Confidence: {result.confidence:.3f}")
-        print(f"  Complete: {result.is_complete}")
-        print(f"  Patterns matched: {len(result.matched_patterns)}")
-        print(f"  Key patterns: {result.matched_patterns[:3]}")
-        print()
 
 
 def demo_agent_registry_integration():
     """Demonstrate integration with agent registry completion indicators."""
-    print("=== Agent Registry Integration Demo ===\n")
-    
     # This would normally load from actual agent files, but we'll simulate
     mock_agent_configs = {
         "research_specialist": {
@@ -203,23 +171,15 @@ def demo_agent_registry_integration():
         message = AIMessage(content=case["message"])
         
         # Use agent-specific completion indicators
-        result = detector.analyze_completion_patterns(
+        detector.analyze_completion_patterns(
             message,
             custom_indicators=agent_config["completion_indicators"]
         )
         
-        print(f"Agent: {case['agent']}")
-        print(f"  Completion indicators: {agent_config['completion_indicators']}")
-        print(f"  Message: {case['message'][:60]}...")
-        print(f"  Detection result: {result.is_complete} (confidence: {result.confidence:.3f})")
-        print(f"  Matched indicators: {[p for p in result.matched_patterns if 'Custom:' in p]}")
-        print()
 
 
 def demo_production_usage():
     """Demonstrate production-ready usage patterns."""
-    print("=== Production Usage Demo ===\n")
-    
     detector = CompletionDetector()
     
     # Add custom pattern for production environment
@@ -232,9 +192,6 @@ def demo_production_usage():
     # Adjust threshold for production requirements
     detector.set_completion_threshold(0.6)  # Higher threshold for production
     
-    print("Production configuration:")
-    print(f"  Completion threshold: {detector.completion_threshold}")
-    print(f"  Debug mode: {detector.debug_mode}")
     
     # Simulate production workflow
     workflow_messages = [
@@ -246,35 +203,21 @@ def demo_production_usage():
         "Next agent can proceed with the implementation phase."
     ]
     
-    print("\nSimulated workflow progression:")
     for i, content in enumerate(workflow_messages, 1):
         message = AIMessage(content=content)
-        result = detector.analyze_completion_patterns(message)
+        detector.analyze_completion_patterns(message)
         
-        status = "🟢 COMPLETE" if result.is_complete else "🟡 ONGOING"
-        print(f"  Step {i}: {status} (confidence: {result.confidence:.3f}) - {content[:50]}...")
     
-    print()
 
 
 def main():
     """Run all demonstration scenarios."""
-    print("🤖 CompletionDetector Demo for Sequential Multi-Agent Workflows\n")
-    print("This demo shows how the completion detector enables automatic handoff")
-    print("detection in sequential agent workflows without explicit handoff tools.\n")
-    
     demo_basic_completion_detection()
     demo_custom_agent_indicators()
     demo_detection_strategies()
     demo_agent_registry_integration()
     demo_production_usage()
     
-    print("✅ Demo completed successfully!")
-    print("\nKey takeaways:")
-    print("- CompletionDetector supports multiple detection strategies")
-    print("- Custom completion indicators enable agent-specific detection")
-    print("- Confidence scoring allows for flexible threshold management")
-    print("- Production-ready with comprehensive error handling and logging")
 
 
 if __name__ == "__main__":

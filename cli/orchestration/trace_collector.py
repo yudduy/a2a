@@ -4,14 +4,12 @@ This module implements observability and reinforcement learning from human feedb
 using Langfuse as the backbone for trace management and GRPO optimization.
 """
 
-import asyncio
-import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 import json
-import numpy as np
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+import numpy as np
 
 
 class TraceCollector:
@@ -300,7 +298,7 @@ class GRPOLearner:
         if model_path:
             try:
                 # Load saved model
-                with open(model_path, 'r') as f:
+                with open(model_path) as f:
                     self.policy_model = json.load(f)
                 self.logger.info(f"Loaded policy model from {model_path}")
             except Exception as e:
@@ -521,7 +519,7 @@ class GRPOLearner:
 
         if query_type in self.policy_model["rules"]:
             # Update rule with successful strategy
-            current_rule = self.policy_model["rules"][query_type]
+            self.policy_model["rules"][query_type]
 
             # If this strategy performed better, update the rule
             if advantage > 0.1:  # Significant advantage

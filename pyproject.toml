@@ -28,38 +28,30 @@ dependencies = [
     "requests>=2.32.3",
     "beautifulsoup4==4.13.3",
     "python-dotenv>=1.0.1",
-    "pytest",
     "httpx>=0.24.0",
     "markdownify>=0.11.6",
-    "azure-identity>=1.21.0",
-    "azure-search>=1.0.0b2",
-    "azure-search-documents>=11.5.2",
     "rich>=13.0.0",
     "langgraph-cli[inmem]>=0.3.1",
     "langsmith>=0.3.37",
     "langchain-google-vertexai>=2.0.25",
     "langchain-google-genai>=2.1.5",
-    "ipykernel>=6.29.5",
     "supabase>=2.15.3",
     "mcp>=1.9.4",
     "langchain-aws>=0.2.28",
-    "pandas>=2.3.1",
-    "pytest-asyncio>=1.1.0",
 ]
 
 [project.optional-dependencies]
-dev = ["mypy>=1.11.1", "ruff>=0.6.1"]
+dev = ["mypy>=1.11.1", "ruff>=0.6.1", "pytest", "pytest-asyncio>=1.1.0"]
 
 [build-system]
 requires = ["setuptools>=73.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["open_deep_research", "legacy", "tests", "cli"]
+packages = ["open_deep_research", "tests", "cli"]
 
 [tool.setuptools.package-dir]
 "open_deep_research" = "src/open_deep_research"
-"legacy" = "src/legacy"
 "tests" = "tests"
 "cli" = "cli"
 

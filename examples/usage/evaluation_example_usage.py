@@ -1,14 +1,12 @@
 """Example usage and integration demonstrations for the LLM Judge system."""
 
-import asyncio
-import json
-from typing import Dict, Any
 from datetime import datetime
+from typing import Dict
 
 from langchain_core.runnables import RunnableConfig
 
 from open_deep_research.evaluation import LLMJudge
-from open_deep_research.state import RunningReport, AgentExecutionReport
+from open_deep_research.state import AgentExecutionReport, RunningReport
 
 
 class LLMJudgeExamples:
@@ -122,7 +120,6 @@ Technical evaluation requires comprehensive testing across capability, alignment
     @staticmethod 
     def create_sample_running_reports() -> Dict[str, RunningReport]:
         """Create sample RunningReport objects for testing."""
-        
         # Create sample agent execution reports
         theory_agent_report = AgentExecutionReport(
             agent_name="theory_researcher",
@@ -209,8 +206,6 @@ Technical evaluation requires comprehensive testing across capability, alignment
     @staticmethod
     async def example_basic_evaluation():
         """Basic example of evaluating multiple research reports."""
-        print("=== Basic LLM Judge Evaluation Example ===")
-        
         # Setup
         config = LLMJudgeExamples.create_sample_config()
         judge = LLMJudge(config=config)
@@ -221,41 +216,31 @@ Technical evaluation requires comprehensive testing across capability, alignment
         
         try:
             # Evaluate reports
-            print(f"Evaluating {len(reports)} reports...")
             result = await judge.evaluate_reports(
                 reports=reports,
                 research_topic=research_topic
             )
             
             # Display results
-            print(f"\n🏆 Winner: {result.winning_sequence}")
-            print(f"📊 Score: {result.winning_sequence_score:.1f}/100")
-            print(f"⏱️  Processing time: {result.processing_time:.2f} seconds")
             
-            print("\n📈 Rankings:")
             for i, eval in enumerate(sorted(result.individual_evaluations, 
                                           key=lambda x: x.overall_score, reverse=True), 1):
-                print(f"  {i}. {eval.sequence_name}: {eval.overall_score:.1f}/100")
+                pass
             
-            print("\n🎯 Key Differentiators:")
             for differentiator in result.key_differentiators:
-                print(f"  • {differentiator}")
+                pass
             
-            print("\n💡 Sequence Recommendations:")
             for sequence, recommendation in result.sequence_recommendations.items():
-                print(f"  • {sequence}: {recommendation}")
+                pass
             
             return result
             
-        except Exception as e:
-            print(f"❌ Evaluation failed: {e}")
+        except Exception:
             return None
 
     @staticmethod
     async def example_single_report_evaluation():
         """Example of evaluating a single research report."""
-        print("\n=== Single Report Evaluation Example ===")
-        
         config = LLMJudgeExamples.create_sample_config()
         judge = LLMJudge(config=config)
         
@@ -271,38 +256,23 @@ Technical evaluation requires comprehensive testing across capability, alignment
             )
             
             if result:
-                print(f"📋 Report: {result.sequence_name}")
-                print(f"🎯 Overall Score: {result.overall_score:.1f}/100")
                 
-                print("\n📊 Detailed Scores:")
-                print(f"  • Completeness: {result.completeness.score:.1f}/10")
-                print(f"  • Depth: {result.depth.score:.1f}/10") 
-                print(f"  • Coherence: {result.coherence.score:.1f}/10")
-                print(f"  • Innovation: {result.innovation.score:.1f}/10")
-                print(f"  • Actionability: {result.actionability.score:.1f}/10")
                 
-                print(f"\n✅ Key Strengths:")
                 for strength in result.key_strengths[:3]:
-                    print(f"  • {strength}")
+                    pass
                 
-                print(f"\n⚠️  Areas for Improvement:")
                 for weakness in result.key_weaknesses[:3]:
-                    print(f"  • {weakness}")
+                    pass
                 
-                print(f"\n📝 Executive Summary:")
-                print(f"  {result.executive_summary}")
                 
             return result
             
-        except Exception as e:
-            print(f"❌ Single report evaluation failed: {e}")
+        except Exception:
             return None
 
     @staticmethod
     async def example_running_report_evaluation():
         """Example of evaluating RunningReport objects."""
-        print("\n=== RunningReport Evaluation Example ===")
-        
         config = LLMJudgeExamples.create_sample_config()
         judge = LLMJudge(config=config)
         
@@ -315,29 +285,20 @@ Technical evaluation requires comprehensive testing across capability, alignment
                 research_topic="AI Safety Research Analysis"
             )
             
-            print(f"🏆 Winner: {result.winning_sequence}")
-            print(f"📊 Performance Gap: {max(result.performance_gaps.values()):.1f} points")
             
-            print("\n🔍 Comparative Analysis:")
             ca = result.comparative_analysis
-            print(f"  Best Overall: {ca.best_sequence}")
-            print(f"  Reasoning: {ca.best_sequence_reasoning}")
             
-            print("\n📈 Criteria Leaders:")
             for criterion, leader in ca.criteria_leaders.items():
-                print(f"  • {criterion}: {leader}")
+                pass
             
             return result
             
-        except Exception as e:
-            print(f"❌ RunningReport evaluation failed: {e}")
+        except Exception:
             return None
 
     @staticmethod
     async def example_performance_comparison():
         """Example showing detailed performance comparison features."""
-        print("\n=== Performance Comparison Example ===")
-        
         config = LLMJudgeExamples.create_sample_config()
         judge = LLMJudge(config=config)
         
@@ -350,36 +311,22 @@ Technical evaluation requires comprehensive testing across capability, alignment
             )
             
             # Use helper methods
-            winner_details = result.get_winner_details()
+            result.get_winner_details()
             criteria_rankings = result.get_criteria_rankings()
             
-            print("🥇 Winner Details:")
-            print(f"  Sequence: {winner_details['sequence_name']}")
-            print(f"  Score: {winner_details['overall_score']:.1f}/100")
-            print(f"  Top Strength: {winner_details['key_strengths'][0]}")
             
-            print("\n🎯 Criteria Performance:")
             for criterion, ranking in criteria_rankings.items():
-                best = ranking[0]
-                print(f"  {criterion.title()}: {best['sequence_name']} ({best['score']:.1f}/10)")
+                ranking[0]
             
-            print("\n📊 Score Statistics:")
-            stats = result.score_statistics
-            print(f"  Mean: {stats['mean']:.1f}")
-            print(f"  Range: {stats['min']:.1f} - {stats['max']:.1f}")
-            print(f"  Std Dev: {stats['std_dev']:.1f}")
             
             return result
             
-        except Exception as e:
-            print(f"❌ Performance comparison failed: {e}")
+        except Exception:
             return None
 
     @staticmethod
     def example_configuration_options():
         """Show different configuration options for the LLM Judge."""
-        print("\n=== Configuration Options Example ===")
-        
         # Basic configuration
         basic_config = RunnableConfig(
             configurable={
@@ -389,7 +336,7 @@ Technical evaluation requires comprehensive testing across capability, alignment
         )
         
         # Advanced configuration with custom settings
-        advanced_config = RunnableConfig(
+        RunnableConfig(
             configurable={
                 "evaluation_model": "openai:gpt-4.1",
                 "evaluation_model_max_tokens": 8192,
@@ -401,32 +348,22 @@ Technical evaluation requires comprehensive testing across capability, alignment
             }
         )
         
-        print("Basic Configuration:")
-        print(json.dumps(basic_config["configurable"], indent=2))
         
-        print("\nAdvanced Configuration:")
-        print(json.dumps(advanced_config["configurable"], indent=2))
         
         # Show different initialization options
-        print("\nJudge Initialization Options:")
         
         # Option 1: Use config model
-        judge1 = LLMJudge(config=basic_config)
-        print(f"1. Config-based: {judge1.evaluation_model_name}")
+        LLMJudge(config=basic_config)
         
         # Option 2: Override with specific model
-        judge2 = LLMJudge(config=basic_config, evaluation_model="openai:gpt-4o")
-        print(f"2. Model override: {judge2.evaluation_model_name}")
+        LLMJudge(config=basic_config, evaluation_model="openai:gpt-4o")
         
         # Option 3: Custom retry settings
-        judge3 = LLMJudge(config=basic_config, max_retries=5)
-        print(f"3. Custom retries: {judge3.max_retries} attempts")
+        LLMJudge(config=basic_config, max_retries=5)
 
 
 async def run_all_examples():
     """Run all example demonstrations."""
-    print("🚀 Starting LLM Judge System Examples\n")
-    
     examples = LLMJudgeExamples()
     
     # Run examples in sequence
@@ -436,13 +373,10 @@ async def run_all_examples():
     await examples.example_performance_comparison()
     examples.example_configuration_options()
     
-    print("\n✅ All examples completed!")
 
 
 if __name__ == "__main__":
     """Run examples when script is executed directly."""
-    print("Note: This is a demonstration script showing LLM Judge usage.")
-    print("Make sure to set your API keys in the configuration before running.\n")
     
     # Uncomment to run examples (requires API keys)
     # asyncio.run(run_all_examples())

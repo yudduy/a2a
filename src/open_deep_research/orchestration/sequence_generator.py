@@ -8,18 +8,18 @@ Please update your imports to use the new unified sequence generator:
 """
 
 import warnings
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import List, Optional
 
+from open_deep_research.agents.registry import AgentRegistry
 from open_deep_research.core.sequence_generator import (
-    UnifiedSequenceGenerator,
-    TopicType,
-    SequenceStrategy, 
-    TopicAnalysis,
+    AgentCapability,
     GeneratedSequence,
     SequenceGenerationInput,
-    AgentCapability
+    SequenceStrategy,
+    TopicAnalysis,
+    TopicType,
+    UnifiedSequenceGenerator,
 )
-from open_deep_research.agents.registry import AgentRegistry
 
 # Issue deprecation warning
 warnings.warn(

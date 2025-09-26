@@ -11,9 +11,8 @@ import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 from uuid import uuid4
-from weakref import WeakSet
 
 from pydantic import BaseModel, Field
 
@@ -108,7 +107,6 @@ class StreamSubscription(BaseModel):
     
     def matches_message(self, message: Union[StreamMessage, 'MetricsUpdate']) -> bool:
         """Check if message matches subscription filters."""
-        
         # Handle MetricsUpdate messages
         if METRICS_AVAILABLE and isinstance(message, MetricsUpdate):
             return self._matches_metrics_message(message)
@@ -136,7 +134,6 @@ class StreamSubscription(BaseModel):
     
     def _matches_metrics_message(self, metrics_update: 'MetricsUpdate') -> bool:
         """Check if metrics update matches subscription filters."""
-        
         # Check if metrics are enabled
         if not self.include_metrics:
             return False
@@ -543,7 +540,6 @@ class StreamMultiplexer:
         **kwargs
     ) -> str:
         """Create a new stream subscription."""
-        
         subscription = StreamSubscription(
             client_id=client_id,
             sequence_strategies=sequence_strategies or set(),
@@ -604,7 +600,6 @@ class StreamMultiplexer:
         Returns:
             Subscription ID
         """
-        
         # Configure metrics-specific settings
         metrics_config = {
             'include_metrics': True,

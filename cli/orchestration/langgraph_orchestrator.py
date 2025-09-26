@@ -6,26 +6,26 @@ providing graph-based state management for research workflows.
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional, AsyncGenerator
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from langgraph.graph import StateGraph, END, START
-from langgraph.types import Command
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 
 try:
-    from ..core.a2a_client import A2AClient, AgentCard, Task, AgentResult
-    from ..core.context_tree import ContextTree, create_research_context_tree
-    from ..utils.research_types import ResearchState, StreamMessage, RoutedMessage
     from ..agents.research_agent import ResearchAgent
+    from ..core.a2a_client import A2AClient, AgentCard, AgentResult, Task
+    from ..core.context_tree import ContextTree, create_research_context_tree
+    from ..utils.research_types import ResearchState, RoutedMessage, StreamMessage
 except ImportError:
     # For running as standalone module
-    from core.a2a_client import A2AClient, AgentCard, Task, AgentResult
-    from core.context_tree import ContextTree, create_research_context_tree
-    from utils.research_types import ResearchState, StreamMessage, RoutedMessage
     from agents.research_agent import ResearchAgent
+    from core.a2a_client import A2AClient, Task
+    from core.context_tree import create_research_context_tree
+    from utils.research_types import ResearchState, StreamMessage
 
 
 class ResearchResult:

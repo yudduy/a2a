@@ -9,24 +9,20 @@ Please update your imports to use the new unified sequence generator:
 
 import warnings
 from typing import Optional
+
 from langchain_core.runnables import RunnableConfig
 
-from open_deep_research.core.sequence_generator import (
-    UnifiedSequenceGenerator,
-    SequenceGenerationInput,
-    SequenceGenerationResult,
-    SequenceGenerationOutput,
-    SequenceGenerationMetadata,
-    AgentSequence
-)
 from open_deep_research.agents.registry import AgentRegistry
-from .sequence_models import (
-    SequenceGenerationInput as OriginalInput,
-    SequenceGenerationResult as OriginalResult,
-    SequenceGenerationOutput as OriginalOutput,
-    SequenceGenerationMetadata as OriginalMetadata,
-    AgentSequence as OriginalAgentSequence
+from open_deep_research.core.sequence_generator import (
+    SequenceGenerationInput,
+    UnifiedSequenceGenerator,
 )
+
+from .sequence_models import AgentSequence as OriginalAgentSequence
+from .sequence_models import SequenceGenerationInput as OriginalInput
+from .sequence_models import SequenceGenerationMetadata as OriginalMetadata
+from .sequence_models import SequenceGenerationOutput as OriginalOutput
+from .sequence_models import SequenceGenerationResult as OriginalResult
 
 # Issue deprecation warning
 warnings.warn(

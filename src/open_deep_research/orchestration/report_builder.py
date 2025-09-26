@@ -4,15 +4,11 @@ This module builds reports incrementally as agents complete their tasks,
 maintaining context and insights throughout the sequential workflow.
 """
 
-from typing import List, Dict, Optional, Any
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Dict, List
 
-from open_deep_research.state import (
-    AgentExecutionReport, 
-    RunningReport, 
-    SequentialSupervisorState
-)
+from open_deep_research.state import AgentExecutionReport, RunningReport
 
 logger = logging.getLogger(__name__)
 
@@ -343,19 +339,19 @@ class RunningReportBuilder:
         """
         report_lines = [
             f"# Research Report: {running_report.research_topic}",
-            f"",
+            "",
             f"**Sequence:** {running_report.sequence_name}  ",
             f"**Generated:** {running_report.start_time.strftime('%Y-%m-%d %H:%M:%S')} UTC  ",
             f"**Status:** {running_report.completion_status.title()}  ",
             f"**Total Execution Time:** {running_report.total_execution_time:.1f} seconds  ",
             f"**Agents Executed:** {running_report.total_agents_executed}  ",
-            f"",
-            f"## Executive Summary",
-            f"",
+            "",
+            "## Executive Summary",
+            "",
             running_report.executive_summary,
-            f"",
-            f"## Detailed Findings by Agent",
-            f""
+            "",
+            "## Detailed Findings by Agent",
+            ""
         ]
         
         # Add agent-specific sections
@@ -363,14 +359,14 @@ class RunningReportBuilder:
             agent_name = agent_report.agent_name.replace('-', ' ').replace('_', ' ').title()
             report_lines.extend([
                 f"### {i}. {agent_name} ({agent_report.agent_type})",
-                f"",
+                "",
                 f"**Execution Time:** {agent_report.execution_duration:.1f} seconds  ",
                 f"**Completion Confidence:** {agent_report.completion_confidence:.2f}  ",
                 f"**Research Depth:** {agent_report.research_depth_score:.2f}  ",
                 f"**Questions Addressed:** {len(agent_report.questions_addressed)}  ",
-                f"",
-                f"#### Key Insights:",
-                f""
+                "",
+                "#### Key Insights:",
+                ""
             ])
             
             for insight in agent_report.insights:
@@ -378,20 +374,20 @@ class RunningReportBuilder:
             
             if agent_report.research_content:
                 report_lines.extend([
-                    f"",
-                    f"#### Research Summary:",
-                    f"",
+                    "",
+                    "#### Research Summary:",
+                    "",
                     agent_report.research_content[:500] + ("..." if len(agent_report.research_content) > 500 else ""),
-                    f""
+                    ""
                 ])
         
         # Add insight connections
         if running_report.insight_connections:
             report_lines.extend([
-                f"## Insight Connections",
-                f"",
-                f"The following connections were identified between agent insights:",
-                f""
+                "## Insight Connections",
+                "",
+                "The following connections were identified between agent insights:",
+                ""
             ])
             
             for connection in running_report.insight_connections:
@@ -400,16 +396,16 @@ class RunningReportBuilder:
                     f"**{connection['from_agent']} → {connection['to_agent']}**  ",
                     f"Connection: {connection.get('connection_type', 'unknown')}  ",
                     f"Shared concepts: {shared_concepts}  ",
-                    f""
+                    ""
                 ])
         
         # Add recommendations
         if running_report.recommendations:
             report_lines.extend([
-                f"## Recommendations",
-                f"",
-                f"Based on the research findings, the following recommendations are provided:",
-                f""
+                "## Recommendations",
+                "",
+                "Based on the research findings, the following recommendations are provided:",
+                ""
             ])
             
             for i, recommendation in enumerate(running_report.recommendations, 1):
@@ -423,17 +419,17 @@ class RunningReportBuilder:
                      max(len(running_report.all_insights), 1) * 100)
         
         report_lines.extend([
-            f"## Research Statistics",
-            f"",
+            "## Research Statistics",
+            "",
             f"- **Total Insights Generated:** {len(running_report.all_insights)}",
             f"- **Unique Insights:** {unique_insights}",
             f"- **Insight Redundancy:** {redundancy:.1f}%",
             f"- **Average Execution Time per Agent:** {running_report.total_execution_time / max(running_report.total_agents_executed, 1):.1f}s",
             f"- **Insight Connections Discovered:** {len(running_report.insight_connections)}",
-            f"",
-            f"---",
-            f"",
-            f"*Report generated by Sequential Multi-Agent Supervisor*"
+            "",
+            "---",
+            "",
+            "*Report generated by Sequential Multi-Agent Supervisor*"
         ])
         
         return "\n".join(report_lines)

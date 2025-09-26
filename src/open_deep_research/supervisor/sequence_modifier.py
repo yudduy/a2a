@@ -4,9 +4,9 @@ This module enables intelligent modification of agent sequences based on
 discoveries and findings during execution, optimizing research workflows.
 """
 
-from typing import List, Dict, Optional, Any, Tuple
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from open_deep_research.state import SequentialSupervisorState
 from open_deep_research.supervisor.completion_analyzer import CompletionAnalysis
@@ -135,7 +135,7 @@ class SequenceModifier:
         
         # Analyze insights for gap indicators
         insight_text = " ".join(insights).lower()
-        identified_topics = handoff_context.get("identified_topics", [])
+        handoff_context.get("identified_topics", [])
         
         # Define gap patterns and required specialists
         gap_patterns = {

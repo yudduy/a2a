@@ -7,11 +7,10 @@ agent orderings in the research process.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, Tuple, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
-
 
 
 class AgentType(Enum):

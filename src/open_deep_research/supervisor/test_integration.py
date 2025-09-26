@@ -2,12 +2,10 @@
 
 import asyncio
 import logging
-from datetime import datetime
 
 from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.supervisor import SequentialSupervisor, SupervisorConfig
-from open_deep_research.state import SequentialSupervisorState
 from open_deep_research.configuration import Configuration
+from open_deep_research.supervisor import SequentialSupervisor, SupervisorConfig
 
 # Configure logging for test
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +39,7 @@ async def test_supervisor_initialization():
     # Verify initialization
     assert supervisor is not None
     assert supervisor.agent_registry == registry
-    assert supervisor.config.debug_mode == True
+    assert supervisor.config.debug_mode is True
     assert supervisor.completion_detector is not None
     
     logger.info("✓ Supervisor initialization test passed")
@@ -116,12 +114,12 @@ async def test_supervisor_validation():
     
     # Test empty sequence validation
     validation = supervisor.validate_sequence([])
-    assert validation["valid"] == False
+    assert validation["valid"] is False
     assert "Empty sequence" in validation["errors"][0]
     
     # Test sequence with non-existent agents
     validation = supervisor.validate_sequence(["nonexistent_agent"])
-    assert validation["valid"] == False
+    assert validation["valid"] is False
     assert "not found in registry" in validation["errors"][0]
     
     logger.info("✓ Supervisor validation test passed")

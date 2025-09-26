@@ -5,10 +5,9 @@ dynamically generating questions based on accumulated insights and tracking
 productivity transitions to optimize the research process.
 """
 
-import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -16,14 +15,16 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
 from open_deep_research.configuration import Configuration
-from open_deep_research.utils import get_api_key_for_model, get_model_config_for_provider, clean_reasoning_model_output
 from open_deep_research.sequencing.models import (
     AdaptiveLearningState,
     AgentType,
     InsightTransition,
     InsightType,
-    SequencePattern,
-    ToolProductivityMetrics
+)
+from open_deep_research.utils import (
+    clean_reasoning_model_output,
+    get_api_key_for_model,
+    get_model_config_for_provider,
 )
 
 logger = logging.getLogger(__name__)

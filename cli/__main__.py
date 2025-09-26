@@ -9,7 +9,6 @@ and Langfuse integration.
 import asyncio
 import logging
 import sys
--import os
 from typing import Optional
 
 try:
@@ -18,12 +17,10 @@ try:
 except ImportError:
     pass  # dotenv not available, skip loading
 
-from .core.cli_interface import ResearchCLI, CLICommandHandler
-from .orchestration.langgraph_orchestrator import OrchestrationEngine
-from .orchestration.trace_collector import TraceCollector, GRPOLearner
 from .agents.research_agent import create_agent_registry
-from .utils.research_types import ResearchState
-
+from .core.cli_interface import ResearchCLI
+from .orchestration.langgraph_orchestrator import OrchestrationEngine
+from .orchestration.trace_collector import GRPOLearner, TraceCollector
 
 # Configure logging
 logging.basicConfig(
@@ -127,8 +124,8 @@ class ResearchCLIApp:
 
         # Display training statistics
         if self.trace_collector:
-            session_stats = self.trace_collector.get_session_summary()
-            self.cli.console.print(f"\n[green]Training completed![/green]")
+            self.trace_collector.get_session_summary()
+            self.cli.console.print("\n[green]Training completed![/green]")
             self.cli.display_training_stats()
 
     async def show_stats(self):
@@ -228,7 +225,7 @@ async def main():
                 app.cli.display_help()
 
             elif command == "version":
-                app.cli.console.print(f"[blue]Research CLI v0.1.0[/blue]")
+                app.cli.console.print("[blue]Research CLI v0.1.0[/blue]")
                 app.cli.console.print("Built with A2A protocol, LangGraph, and Langfuse integration")
 
             else:

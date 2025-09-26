@@ -6,12 +6,16 @@ Sequential Multi-Agent Supervisor for optimal agent execution ordering.
 
 import asyncio
 import logging
-from typing import List
 
 from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.core.sequence_generator import UnifiedSequenceGenerator, SequenceGenerationInput, AgentCapability
-from open_deep_research.supervisor.sequential_supervisor import SequentialSupervisor, SupervisorConfig
+from open_deep_research.core.sequence_generator import (
+    UnifiedSequenceGenerator,
+)
 from open_deep_research.state import SequentialSupervisorState
+from open_deep_research.supervisor.sequential_supervisor import (
+    SequentialSupervisor,
+    SupervisorConfig,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -242,26 +246,12 @@ async def example_academic_research():
     recommendations for future development of transparent AI systems in healthcare.
     """
     
-    print("=== Academic Research Example ===")
-    print(f"Topic: {research_topic.strip()[:100]}...")
-    print()
     
     # Analyze topic characteristics
     analysis_result = integration.analyze_topic_and_recommend_strategy(research_topic)
-    print("Topic Analysis:")
-    print(f"  Type: {analysis_result['topic_analysis']['topic_type']}")
-    print(f"  Complexity: {analysis_result['topic_analysis']['complexity_score']:.2f}")
-    print(f"  Estimated agents: {analysis_result['topic_analysis']['estimated_agents_needed']}")
-    print(f"  Priority areas: {analysis_result['topic_analysis']['priority_areas']}")
-    print()
     
-    print("Top Strategy Recommendations:")
     for i, strategy in enumerate(analysis_result['strategy_recommendations'][:3], 1):
-        print(f"  {i}. {strategy['sequence_name']} (score: {strategy['score']:.2f})")
-        print(f"     Strategy: {strategy['strategy']}")
-        print(f"     Agents: {' → '.join(strategy['agents'])}")
-        print(f"     Rationale: {strategy['rationale']}")
-        print()
+        pass
 
 
 async def example_market_analysis():
@@ -277,9 +267,6 @@ async def example_market_analysis():
     segments, and go-to-market approaches for AI customer service platforms.
     """
     
-    print("=== Market Analysis Example ===")
-    print(f"Topic: {research_topic.strip()[:100]}...")
-    print()
     
     # Analyze and execute optimal sequence
     execution_result = await integration.generate_and_execute_optimal_sequence(
@@ -288,47 +275,29 @@ async def example_market_analysis():
     )
     
     if execution_result["success"]:
-        print("Execution Successful!")
-        seq_info = execution_result["sequence_info"]
-        print(f"  Selected Strategy: {seq_info['strategy']}")
-        print(f"  Agent Sequence: {' → '.join(seq_info['agents'])}")
-        print(f"  Sequence Score: {seq_info['score']:.2f}")
-        print(f"  Confidence: {seq_info['confidence']:.2f}")
-        print()
+        execution_result["sequence_info"]
         
-        exec_results = execution_result["execution_results"]
-        print("Execution Results:")
-        print(f"  Agents Executed: {exec_results['agents_executed']}")
-        print(f"  Insights Generated: {exec_results['insights_generated']}")
-        print(f"  Execution Time: {exec_results['execution_time']:.1f} seconds")
-        print(f"  Status: {exec_results['completion_status']}")
+        execution_result["execution_results"]
     else:
-        print(f"Execution Failed: {execution_result['error']}")
+        pass
 
 
 async def main():
     """Run example demonstrations of SequenceGenerator integration."""
-    print("SequenceGenerator Integration Examples")
-    print("=" * 50)
-    
     # Show available agents
     integration = SequenceGeneratorIntegration()
     agent_summary = integration.get_available_agents_summary()
     
-    print(f"\nAvailable Agents ({agent_summary['registry_stats']['total_agents']}):")
     for agent in agent_summary['agents'][:5]:  # Show first 5
-        print(f"  • {agent['name']}: {agent['description']}")
-    print()
+        pass
     
     # Run examples
     try:
         await example_academic_research()
-        print("-" * 50)
         await example_market_analysis()
         
     except Exception as e:
         logger.error("Example execution failed: %s", e)
-        print(f"Error running examples: {e}")
 
 
 if __name__ == "__main__":

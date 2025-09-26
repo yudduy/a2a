@@ -9,22 +9,16 @@ import asyncio
 import logging
 import statistics
 import time
-from collections import defaultdict, deque
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, AsyncIterator, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, Set
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from .models import (
- 
-    SequenceResult, 
-    ToolProductivityMetrics, 
-    AgentExecutionResult,
-    InsightTransition
-)
+from .models import AgentExecutionResult
 
 logger = logging.getLogger(__name__)
 
@@ -431,9 +425,8 @@ class ComparisonAnalyzer:
         best_strategy: str
     ) -> float:
         """Calculate confidence in winner detection."""
-        
         scores = list(productivity_scores.values())
-        best_score = productivity_scores[best_strategy]
+        productivity_scores[best_strategy]
         
         # Productivity difference component
         score_range = max(scores) - min(scores)
@@ -504,7 +497,6 @@ class ComparisonAnalyzer:
         all_metrics: Dict[str, SequenceMetrics]
     ) -> Dict[str, float]:
         """Calculate specific comparative advantages."""
-        
         others = [m for m in all_metrics.values() if m.strategy != winner_metrics.strategy]
         if not others:
             return {}
@@ -619,7 +611,6 @@ class MetricsAggregator:
         start_time: Optional[datetime] = None
     ):
         """Register a new parallel execution for tracking."""
-        
         if start_time is None:
             start_time = datetime.utcnow()
         
@@ -655,7 +646,6 @@ class MetricsAggregator:
         error: Optional[str] = None
     ) -> SequenceMetrics:
         """Collect and update metrics for a specific sequence."""
-        
         if execution_id not in self.sequence_metrics:
             raise ValueError(f"Execution {execution_id} not registered")
         
@@ -683,7 +673,6 @@ class MetricsAggregator:
     
     def aggregate_parallel_metrics(self, execution_id: str) -> ParallelMetrics:
         """Aggregate metrics across all parallel sequences."""
-        
         if execution_id not in self.parallel_metrics:
             raise ValueError(f"Execution {execution_id} not registered")
         
@@ -774,7 +763,6 @@ class MetricsAggregator:
     
     async def stream_metrics_updates(self) -> AsyncIterator[MetricsUpdate]:
         """Stream real-time metrics updates."""
-        
         # Create subscriber queue
         subscriber_queue = asyncio.Queue(maxsize=100)
         self.update_subscribers.add(subscriber_queue)
@@ -801,7 +789,6 @@ class MetricsAggregator:
     
     async def _aggregation_loop(self):
         """Background loop for metrics aggregation and winner detection."""
-        
         while self._running:
             try:
                 await asyncio.sleep(self.update_interval)
@@ -850,7 +837,6 @@ class MetricsAggregator:
     
     async def _streaming_loop(self):
         """Background loop for managing streaming connections."""
-        
         while self._running:
             try:
                 await asyncio.sleep(30.0)  # Cleanup interval
@@ -873,7 +859,6 @@ class MetricsAggregator:
     
     async def _broadcast_update(self, update: MetricsUpdate):
         """Broadcast update to all subscribers."""
-        
         # Add to history
         self.update_history.append(update)
         
@@ -893,7 +878,6 @@ class MetricsAggregator:
     
     def get_execution_snapshot(self, execution_id: str) -> Dict[str, Any]:
         """Get current metrics snapshot for an execution."""
-        
         sequence_metrics = self.sequence_metrics.get(execution_id, {})
         parallel_metrics = self.parallel_metrics.get(execution_id)
         winner_analysis = self.winner_analyses.get(execution_id)
@@ -910,7 +894,6 @@ class MetricsAggregator:
     
     def get_system_metrics(self) -> Dict[str, Any]:
         """Get system-wide metrics and statistics."""
-        
         total_executions = len(self.parallel_metrics)
         active_executions = sum(
             1 for pm in self.parallel_metrics.values()

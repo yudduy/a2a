@@ -3,8 +3,8 @@
 import asyncio
 import logging
 import time
-from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 # Ensure List is available at module level - defensive programming against import issues
 try:
@@ -16,7 +16,7 @@ except ImportError:
 
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import ValidationError
 
@@ -25,16 +25,14 @@ from open_deep_research.state import RunningReport
 from open_deep_research.utils import (
     get_api_key_for_model,
     get_model_config_for_provider,
-    clean_reasoning_model_output,
-    is_token_limit_exceeded
+    is_token_limit_exceeded,
 )
 
 from .models import (
-    EvaluationCriteria,
-    ReportEvaluation,
     ComparativeAnalysis,
     EvaluationResult,
-    SequenceComparison
+    ReportEvaluation,
+    SequenceComparison,
 )
 from .prompts import EvaluationPrompts
 
@@ -416,7 +414,6 @@ Areas where the other sequence showed strength:
                                  comparative_analysis: ComparativeAnalysis,
                                  start_time: float) -> EvaluationResult:
         """Compile the complete evaluation result from individual and comparative analyses."""
-        
         # Calculate summary statistics
         scores = [eval.overall_score for eval in individual_evaluations]
         score_statistics = {

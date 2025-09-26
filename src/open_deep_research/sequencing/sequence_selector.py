@@ -20,16 +20,15 @@ Future Back patterns for comprehensive comparison.
 import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from open_deep_research.sequencing.models import (
+    AgentType,
+    DynamicSequencePattern,
     QueryType,
     ResearchDomain,
     ScopeBreadth,
-    DynamicSequencePattern,
-    AgentType,
-    SEQUENCE_PATTERNS
 )
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,6 @@ class SequenceAnalyzer:
     
     def __init__(self):
         """Initialize the sequence analyzer with domain patterns and keywords."""
-        
         # Domain detection patterns
         self.domain_patterns = {
             "academic": {
@@ -251,7 +249,6 @@ class SequenceAnalyzer:
     
     def _classify_query_type(self, query_lower: str, domain_scores: Dict[str, float]) -> str:
         """Classify the specific type of research query."""
-        
         # Check for competitive intelligence
         if any(indicator in query_lower for indicator in self.competitive_indicators):
             return "competitive_intelligence"
@@ -292,7 +289,7 @@ class SequenceAnalyzer:
                         if indicator in query_lower)
         
         # Check for medium complexity indicators
-        medium_count = sum(1 for indicator in self.complexity_indicators["medium"] 
+        sum(1 for indicator in self.complexity_indicators["medium"] 
                           if indicator in query_lower)
         
         # Check for low complexity indicators
@@ -316,7 +313,6 @@ class SequenceAnalyzer:
     
     def _assess_scope_breadth(self, query_lower: str, complexity_score: float) -> str:
         """Assess the breadth of scope for the research query."""
-        
         broad_indicators = [
             "comprehensive", "complete", "thorough", "extensive", "broad",
             "all aspects", "overall", "general", "wide", "full scope"
@@ -385,7 +381,6 @@ class SequenceAnalyzer:
         characteristics: Dict[str, any]
     ) -> List[Tuple[str, float]]:
         """Recommend sequence strategies with confidence scores."""
-        
         # Base recommendations by query type and domain
         recommendations = {}
         
@@ -460,7 +455,6 @@ class SequenceAnalyzer:
         characteristics: Dict[str, any]
     ) -> str:
         """Generate human-readable explanation for sequence selection."""
-        
         strategy_descriptions = {
             "theory_first": "Theory First approach (Academic → Industry → Technical)",
             "market_first": "Market First approach (Industry → Academic → Technical)",
@@ -561,7 +555,6 @@ class SequenceAnalyzer:
         characteristics: Dict[str, any]
     ) -> Dict[str, str]:
         """Generate detailed reasoning breakdown."""
-        
         reasoning = {
             "query_classification": f"Classified as {query_type} based on keyword analysis and domain indicators",
             "domain_analysis": f"Primary domain identified as {primary_domain} with supporting evidence from query content",
@@ -661,9 +654,6 @@ class SequenceAnalyzer:
         analysis = self.analyze_query(topic)
         
         # Extract analysis components for sequence generation
-        query_type = analysis.query_type.value
-        research_domain = analysis.research_domain.value
-        complexity_score = analysis.complexity_score
         characteristics = analysis.query_characteristics
         
         # Generate diverse sequence patterns using analysis insights
@@ -698,7 +688,6 @@ class SequenceAnalyzer:
         characteristics: Dict[str, any]
     ) -> DynamicSequencePattern:
         """Generate the primary dynamic sequence based on analysis recommendation."""
-        
         # Map primary recommendation to agent order
         strategy_to_agents = {
             "theory_first": [AgentType.ACADEMIC, AgentType.INDUSTRY, AgentType.TECHNICAL_TRENDS],
@@ -746,7 +735,6 @@ class SequenceAnalyzer:
         num_complementary: int
     ) -> List[DynamicSequencePattern]:
         """Generate complementary dynamic sequences with different approaches."""
-        
         complementary_sequences = []
         
         # Get alternative strategies from analysis recommendations
@@ -813,7 +801,6 @@ class SequenceAnalyzer:
         num_needed: int
     ) -> List[DynamicSequencePattern]:
         """Generate hybrid sequences with novel agent orderings."""
-        
         hybrid_sequences = []
         
         # Define some alternative orderings based on characteristics
@@ -890,7 +877,6 @@ class SequenceAnalyzer:
         is_primary: bool
     ) -> str:
         """Generate detailed reasoning for dynamic sequence selection."""
-        
         strategy_rationales = {
             "theory_first": {
                 "core": "establishes rigorous academic foundation before practical applications",
@@ -967,7 +953,6 @@ class SequenceAnalyzer:
         complexity_score: float
     ) -> List[str]:
         """Extract specific advantages for a sequence strategy."""
-        
         base_advantages = {
             "theory_first": [
                 "Strong academic foundation guides research direction",

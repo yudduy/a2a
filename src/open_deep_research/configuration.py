@@ -779,7 +779,7 @@ class Configuration(BaseModel):
     @validator('completion_confidence_threshold', 'modification_threshold')
     def validate_threshold_range(cls, v):
         """Ensure threshold values are between 0 and 1."""
-        if not isinstance(v, (int, float)):
+        if not isinstance(v, int | float):
             return 0.6
         return max(0.0, min(1.0, float(v)))
     

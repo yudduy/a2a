@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from typing import Literal, Optional, Dict, Any, List
+from typing import Any, Dict, List, Literal, Optional
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
@@ -18,21 +18,18 @@ from langchain_core.messages import (
     get_buffer_string,
 )
 from langchain_core.runnables import RunnableConfig
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
-from langgraph.config import get_stream_writer
 
 from open_deep_research.configuration import (
     Configuration,
 )
 from open_deep_research.core.sequence_generator import (
-    UnifiedSequenceGenerator, 
-    SequenceGenerationInput, 
-    AgentSequence
+    AgentSequence,
+    SequenceGenerationInput,
+    UnifiedSequenceGenerator,
 )
-from open_deep_research.supervisor.sequence_models import AgentCapability
-from open_deep_research.supervisor.agent_capability_mapper import AgentCapabilityMapper
-from open_deep_research.sequencing.parallel_executor import ParallelSequenceExecutor
 from open_deep_research.prompts import (
     clarify_with_user_instructions,
     compress_research_simple_human_message,
@@ -49,14 +46,10 @@ from open_deep_research.state import (
     ResearcherOutputState,
     ResearcherState,
     ResearchQuestion,
-    SequentialAgentState,
-    AgentExecutionReport,
-    RunningReport,
 )
 from open_deep_research.utils import (
     anthropic_websearch_called,
     clean_reasoning_model_output,
-    parse_reasoning_model_output,
     get_all_tools,
     get_api_key_for_model,
     get_model_config_for_provider,
@@ -64,8 +57,8 @@ from open_deep_research.utils import (
     get_today_str,
     is_token_limit_exceeded,
     openai_websearch_called,
+    parse_reasoning_model_output,
     remove_up_to_last_ai_message,
-    think_tool,
 )
 
 # Initialize a configurable model that we will use throughout the agent
@@ -81,9 +74,9 @@ def create_cleaned_structured_output(model, output_schema):
     by cleaning the output before structured parsing while preserving thinking content
     for frontend display when needed.
     """
-    from langchain_core.output_parsers import PydanticOutputParser
-    from langchain_core.messages import AIMessage
     import json
+
+    from langchain_core.output_parsers import PydanticOutputParser
     
     # Create a wrapper that has the same interface as with_structured_output
     class StructuredWrapper:
@@ -155,7 +148,11 @@ def create_enhanced_message_with_thinking(response, message_type: str = "ai", se
     Returns:
         Enhanced message with parsed thinking sections and metadata
     """
-    from open_deep_research.state import EnhancedMessage, ParsedMessageContent, ThinkingSection
+    from open_deep_research.state import (
+        EnhancedMessage,
+        ParsedMessageContent,
+        ThinkingSection,
+    )
     
     # Parse the response content for thinking sections
     if hasattr(response, 'content') and response.content:
@@ -991,7 +988,10 @@ async def emit_sequences_to_frontend(
             parallel_metadata.append(metadata)
         
         # Create structured supervisor announcement
-        from open_deep_research.state import SupervisorAnnouncement, ParallelSequenceMetadata
+        from open_deep_research.state import (
+            ParallelSequenceMetadata,
+            SupervisorAnnouncement,
+        )
         supervisor_announcement = SupervisorAnnouncement(
             research_topic=research_topic,
             sequences=[ParallelSequenceMetadata(**metadata) for metadata in parallel_metadata],
@@ -1179,7 +1179,10 @@ async def execute_parallel_sequences(
         Dictionary containing results from all parallel sequence executions
     """
     import logging
-    from open_deep_research.sequencing.simple_sequential_executor import execute_sequences_in_parallel
+
+    from open_deep_research.sequencing.simple_sequential_executor import (
+        execute_sequences_in_parallel,
+    )
     
     logger = logging.getLogger(__name__)
     
@@ -1272,15 +1275,15 @@ def convert_parallel_results_to_agent_state(
     
     # Create combined final report
     if final_reports:
-        combined_report = f"# Parallel Research Execution Results\n\n"
+        combined_report = "# Parallel Research Execution Results\n\n"
         combined_report += f"**Research Topic:** {parallel_results.get('research_topic', 'Unknown')}\n\n"
-        combined_report += f"**Execution Summary:**\n"
+        combined_report += "**Execution Summary:**\n"
         combined_report += f"- Success Rate: {parallel_results.get('success_rate', 0.0):.1f}%\n"
         combined_report += f"- Total Duration: {parallel_results.get('total_duration', 0.0):.1f} seconds\n"
         combined_report += f"- Best Strategy: {parallel_results.get('best_strategy', 'None')}\n\n"
         
         if parallel_results.get("unique_insights"):
-            combined_report += f"**Unique Insights Across All Sequences:**\n"
+            combined_report += "**Unique Insights Across All Sequences:**\n"
             for insight in parallel_results["unique_insights"][:10]:  # Limit to top 10
                 combined_report += f"- {insight}\n"
             combined_report += "\n"
@@ -1329,7 +1332,9 @@ async def generate_strategic_sequences(
             return await create_fallback_strategic_sequences([], research_topic)
         
         # Get agent capabilities
-        from open_deep_research.supervisor.agent_capability_mapper import AgentCapabilityMapper
+        from open_deep_research.supervisor.agent_capability_mapper import (
+            AgentCapabilityMapper,
+        )
         capability_mapper = AgentCapabilityMapper(agent_registry)
         agent_capabilities = capability_mapper.get_all_agent_capabilities()
         
@@ -1342,7 +1347,9 @@ async def generate_strategic_sequences(
         for i, cap in enumerate(agent_capabilities):
             try:
                 # Check if it's already a proper AgentCapability object
-                from open_deep_research.supervisor.sequence_models import AgentCapability
+                from open_deep_research.supervisor.sequence_models import (
+                    AgentCapability,
+                )
                 
                 if isinstance(cap, AgentCapability):
                     # Validate by ensuring all required fields are present
@@ -1388,7 +1395,7 @@ async def generate_strategic_sequences(
         # Limit to first 10 agents for performance and LLM context window
         if len(validated_capabilities) > 10:
             validated_capabilities = validated_capabilities[:10]
-            logger.info(f"Limited agent capabilities to first 10 agents for LLM processing")
+            logger.info("Limited agent capabilities to first 10 agents for LLM processing")
         
         agent_capabilities = validated_capabilities
         

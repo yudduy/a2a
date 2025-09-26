@@ -7,9 +7,9 @@ detection strategies for production-ready sequential agent workflows.
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, Union, Pattern
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, List, Optional, Pattern, Union
 
 from langchain_core.messages import AIMessage
 
@@ -470,7 +470,7 @@ class CompletionDetector:
             if pattern_config.strategy != DetectionStrategy.MESSAGE_STRUCTURE:
                 continue
                 
-            pattern_key = f"structure_{id(pattern_config)}"
+            f"structure_{id(pattern_config)}"
             
             # Compile on-demand for structure patterns
             if isinstance(pattern_config.pattern, str):

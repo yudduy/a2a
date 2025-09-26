@@ -6,23 +6,20 @@ and interactive research execution.
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional, AsyncGenerator
-from datetime import datetime
-import json
+from typing import Any, Dict, List, Optional
 
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import Progress, TaskID
+from rich.status import Status
 from rich.table import Table
 from rich.tree import Tree
-from rich.text import Text
-from rich.columns import Columns
-from rich.spinner import Spinner
-from rich.status import Status
 
 try:
-    from ..orchestration.langgraph_orchestrator import OrchestrationEngine, ResearchResult
+    from ..orchestration.langgraph_orchestrator import (
+        OrchestrationEngine,
+        ResearchResult,
+    )
     from ..orchestration.trace_collector import TraceCollector
     from ..utils.research_types import StreamMessage
 except ImportError:
@@ -102,7 +99,7 @@ class ResearchCLI:
             await self._display_final_result(result, query)
         else:
             # Fallback display showing system is working
-            self.console.print(f"\n[bold green]✅ Research Complete![/bold green]\n")
+            self.console.print("\n[bold green]✅ Research Complete![/bold green]\n")
             self.console.print(f"[bold yellow]System Status:[/bold yellow] CLI system executed successfully with {result.papers or 0} research sequences")
             self.console.print(f"[bold blue]Query:[/bold blue] {query}")
             self.console.print(f"[dim]Note: Full synthesis available in logs (length: {len(result.synthesis or '')} characters)[/dim]")
@@ -222,7 +219,7 @@ class ResearchCLI:
             result: Research result
             query: Original query
         """
-        self.console.print(f"\n[bold green]✅ Research Complete![/bold green]\n")
+        self.console.print("\n[bold green]✅ Research Complete![/bold green]\n")
 
         # Create result panel
         result_panel = Panel(

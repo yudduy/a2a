@@ -13,38 +13,27 @@ Test Categories:
 4. Sequence-Judge Integration (from test_sequence_generation_llm_judge.py)
 """
 
-import asyncio
-import json
-import pytest
 import time
-import unittest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from unittest.mock import Mock, patch
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_core.runnables import RunnableConfig
-from pydantic import ValidationError
+import pytest
 
+from open_deep_research.configuration import Configuration
+from open_deep_research.deep_researcher import (
+    create_enhanced_final_report_prompt,
+    create_orchestration_insights,
+    extract_sequence_reports_for_evaluation,
+)
+from open_deep_research.evaluation.llm_judge import EvaluationResult, LLMJudge
+from open_deep_research.orchestration.report_builder import ReportBuilder
+from open_deep_research.state import AgentState, RunningReport
 from open_deep_research.supervisor.llm_sequence_generator import LLMSequenceGenerator
 from open_deep_research.supervisor.sequence_models import (
     AgentCapability,
+    AgentSequence,
     SequenceGenerationInput,
     SequenceGenerationOutput,
-    SequenceGenerationResult,
-    AgentSequence
 )
-from open_deep_research.evaluation.llm_judge import LLMJudge, EvaluationResult
-from open_deep_research.orchestration.report_builder import ReportBuilder
-from open_deep_research.state import DeepResearchState, AgentState, RunningReport
-from open_deep_research.deep_researcher import (
-    extract_sequence_reports_for_evaluation,
-    create_enhanced_final_report_prompt,
-    create_orchestration_insights
-)
-from open_deep_research.agents.registry import AgentRegistry
-from open_deep_research.configuration import Configuration
-
 
 # =============================================================================
 # SEQUENCE GENERATION TESTS
@@ -442,22 +431,6 @@ class TestEndToEndIntegration:
         ]
         
         # Mock execution results
-        mock_results = {
-            "sequence_results": {
-                "seq_0": {
-                    "comprehensive_findings": ["Finding 1", "Finding 2"],
-                    "agent_results": [
-                        {"agent_type": "research_agent", "key_insights": ["Insight 1"]}
-                    ]
-                },
-                "seq_1": {
-                    "comprehensive_findings": ["Finding 3"],
-                    "agent_results": [
-                        {"agent_type": "technical_agent", "key_insights": ["Insight 2"]}
-                    ]
-                }
-            }
-        }
         
         # Mock evaluation result
         mock_evaluation = EvaluationResult(
@@ -588,7 +561,7 @@ class TestReportBuildingIntegration:
         ]
         
         # Test that report can be built incrementally
-        builder = ReportBuilder(self.config)
+        ReportBuilder(self.config)
         
         # Simulate incremental updates
         for agent_result in agent_results:
@@ -625,7 +598,6 @@ class TestPerformanceAndScaling:
     
     def test_sequence_generation_performance(self):
         """Test sequence generation performance characteristics."""
-        import time
         
         # Mock quick sequence generation
         start_time = time.time()
@@ -650,7 +622,6 @@ class TestPerformanceAndScaling:
     
     def test_evaluation_performance(self):
         """Test LLM Judge evaluation performance."""
-        import time
         
         start_time = time.time()
         
