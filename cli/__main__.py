@@ -282,8 +282,9 @@ class ResearchCLIApp:
 
             self.cli.console.print("\n[bold green]📊 Comprehensive Test Results[/bold green]")
             self.cli.console.print(f"Total experiments: {results['total_experiments']}")
-            self.cli.console.print(f"Query types tested: {', '.join(results['query_types_tested'])}")
-            self.cli.console.print(f"Strategies tested: {results['strategies_tested']}")
+            self.cli.console.print(f"Query types tested: {', '.join(q.value for q in results['query_types_tested'])}")
+            strategies_str = ', '.join(results['strategies_tested']) if isinstance(results['strategies_tested'], list) else str(results['strategies_tested'])
+            self.cli.console.print(f"Strategies tested: {strategies_str}")
 
             # Display cache statistics
             if 'cache_stats' in results:

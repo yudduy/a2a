@@ -849,9 +849,11 @@ class OrchestrationOptimizer:
 
         # Statistical significance testing between strategies
         significance_tests = self._perform_significance_tests(df)
+        self.significance_tests = significance_tests
 
         # Cost-benefit analysis
         cost_benefit_analysis = self._perform_cost_benefit_analysis(df)
+        self.cost_benefit_analysis = cost_benefit_analysis
 
         return {
             "overall_stats": overall_stats,
@@ -1026,7 +1028,6 @@ class OrchestrationOptimizer:
             query_type_results[query_type] = type_results
 
         # Analyze comprehensive results
-        self.experiments.extend(all_results)
         analysis = self.analyze_performance()
 
         return {

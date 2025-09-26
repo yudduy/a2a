@@ -27,6 +27,7 @@ except ImportError:
     from core.a2a_client import A2AClient, Task
     from core.context_tree import create_research_context_tree
     from utils.research_types import ResearchState, StreamMessage
+    from orchestration.orchestration_optimizer import OrchestrationStrategy
 
 
 class ResearchResult:
@@ -96,24 +97,25 @@ class OrchestrationEngine:
     async def execute_research_with_strategy(
         self,
         query: str,
-        strategy: str
+        strategy: OrchestrationStrategy | str,
     ) -> ResearchResult:
         """
         Execute research with a specific orchestration strategy.
 
         Args:
             query: Research query
-            strategy: Orchestration strategy to use
+            strategy: Orchestration strategy to use (OrchestrationStrategy enum or string)
 
         Returns:
             ResearchResult
         """
-        self.current_strategy = strategy
+        strategy_name = strategy.value if isinstance(strategy, OrchestrationStrategy) else strategy
+        self.current_strategy = strategy_name
 
         # Modify graph execution based on strategy
-        if strategy == "parallel_all":
+        if strategy_name == "parallel_all":
             return await self._execute_parallel_all(query)
-        elif strategy == "sequential_single":
+        elif strategy_name == "sequential_single":
             return await self._execute_sequential_single(query)
         else:
             return await self.execute_research(query)
@@ -652,26 +654,6 @@ Please provide a detailed, well-structured synthesis report."""
                     papers=all_papers,
                     trace_id=getattr(final_state, "trace_id", None)
                 )
-
-    async def execute_research_with_strategy(self, query: str, strategy: OrchestrationStrategy) -> ResearchResult:
-        """
-        Execute research with a specific orchestration strategy.
-
-        Args:
-            query: Research query
-            strategy: Orchestration strategy to use
-
-        Returns:
-            Research result
-        """
-        self.logger.info(f"Executing research with strategy: {strategy.value} for query: {query}")
-
-        # Set current strategy
-        self.current_strategy = strategy.value
-
-        # For now, just use the standard execution
-        # In the future, this could be enhanced to use different execution paths based on strategy
-        return await self.execute_research(query)
 
     async def execute_stream(self, query: str) -> AsyncGenerator[StreamMessage, None]:
         """Execute research workflow with streaming output.
